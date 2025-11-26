@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>사감 몰래 잠자기</title>
+    <title>Stealth Sleep: Warden's Nightmare (Principal Update)</title>
     <style>
         :root {
             --bg-color: #0d0d0d;
@@ -91,8 +91,9 @@
         .enemy-2yr { background: #ffa502; border: 2px solid #ffc048; box-shadow: 0 0 10px #ffa502; }
         .enemy-3yr { background: #2ed573; border: 2px solid #7bed9f; box-shadow: 0 0 10px #2ed573; }
         .enemy-king { background: #a55eea; border: 2px solid #d1d8e0; box-shadow: 0 0 20px #a55eea; width: 40px; height: 40px; }
+        /* 교장 스타일 */
+        .enemy-principal { background: #000000; border: 2px solid #ffffff; box-shadow: 0 0 25px rgba(255,255,255,0.5); width: 44px; height: 44px; color: white !important; }
 
-        /* 상태 아이콘 */
         .alert-icon {
             position: absolute;
             top: -40px;
@@ -101,6 +102,7 @@
             display: none;
             z-index: 30;
             text-shadow: 0 0 5px black;
+            white-space: nowrap;
         }
 
         #vision-canvas {
@@ -125,10 +127,23 @@
             100% { transform: translate(15px, -30px) scale(1.2); opacity: 0; }
         }
 
-        /* 기절 효과 */
-        .stunned {
-            filter: grayscale(100%) brightness(0.5);
+        /* 소음 파동 효과 */
+        .noise-ring {
+            position: absolute;
+            border: 2px solid rgba(0, 229, 255, 0.5);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            animation: ripple 1s infinite ease-out;
+            pointer-events: none;
+            z-index: 15;
+            display: none;
         }
+        @keyframes ripple {
+            0% { width: 0; height: 0; opacity: 1; }
+            100% { width: 700px; height: 700px; opacity: 0; } /* 반경 350px * 2 */
+        }
+
+        .stunned { filter: grayscale(100%) brightness(0.5); }
         #stun-msg {
             position: fixed;
             top: 50%; left: 50%;
@@ -167,101 +182,40 @@
         h1 { font-size: 40px; margin-bottom: 10px; color: var(--player-color); }
         #end-msg { font-size: 28px; color: #ff4757; margin-bottom: 20px; font-weight: bold; }
         
-        .btn-group {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            align-items: center;
-        }
-        
+        .btn-group { display: flex; flex-direction: column; gap: 15px; align-items: center; }
         button {
-            padding: 15px 40px;
-            font-size: 18px;
-            background: transparent;
-            color: var(--player-color);
-            border: 2px solid var(--player-color);
-            border-radius: 30px;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.2s;
+            padding: 15px 40px; font-size: 18px; background: transparent; color: var(--player-color);
+            border: 2px solid var(--player-color); border-radius: 30px; cursor: pointer; font-weight: bold; transition: 0.2s;
         }
         button:hover { background: var(--player-color); color: #000; }
         
-        .settings-area {
-            margin-top: 20px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: #aaa;
-            font-size: 16px;
-        }
-        input[type="checkbox"] {
-            width: 20px; height: 20px;
-            accent-color: var(--player-color);
-        }
-
+        .settings-area { margin-top: 20px; display: flex; align-items: center; gap: 10px; color: #aaa; font-size: 16px; }
+        input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--player-color); }
         .hidden { display: none !important; }
 
-        /* --- Mobile Controls --- */
         #mobile-controls {
-            position: fixed;
-            bottom: 30px;
-            left: 0;
-            width: 100%;
-            height: 150px;
-            z-index: 150;
-            display: none;
-            pointer-events: none;
+            position: fixed; bottom: 30px; left: 0; width: 100%; height: 150px; z-index: 150;
+            display: none; pointer-events: none;
         }
-
         #joystick-area {
-            position: absolute;
-            left: 40px;
-            bottom: 20px;
-            width: 120px;
-            height: 120px;
-            background: rgba(255, 255, 255, 0.1);
-            border: 2px solid rgba(255, 255, 255, 0.2);
-            border-radius: 50%;
-            pointer-events: auto;
-            touch-action: none;
+            position: absolute; left: 40px; bottom: 20px; width: 120px; height: 120px;
+            background: rgba(255, 255, 255, 0.1); border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%; pointer-events: auto; touch-action: none;
         }
-
         #joystick-thumb {
-            position: absolute;
-            left: 50%; top: 50%;
-            width: 50px; height: 50px;
-            background: rgba(0, 229, 255, 0.8);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            box-shadow: 0 0 10px var(--player-color);
+            position: absolute; left: 50%; top: 50%; width: 50px; height: 50px;
+            background: rgba(0, 229, 255, 0.8); border-radius: 50%;
+            transform: translate(-50%, -50%); box-shadow: 0 0 10px var(--player-color);
         }
-
         #sleep-btn {
-            position: absolute;
-            right: 40px;
-            bottom: 30px;
-            width: 90px;
-            height: 90px;
-            border-radius: 50%;
-            background: rgba(165, 94, 234, 0.3);
-            border: 2px solid #a55eea;
-            color: white;
-            font-weight: bold;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            pointer-events: auto;
-            user-select: none;
-            touch-action: none;
+            position: absolute; right: 40px; bottom: 30px; width: 90px; height: 90px;
+            border-radius: 50%; background: rgba(165, 94, 234, 0.3); border: 2px solid #a55eea;
+            color: white; font-weight: bold; display: flex; justify-content: center; align-items: center;
+            pointer-events: auto; user-select: none; touch-action: none;
         }
-        #sleep-btn:active {
-            background: rgba(165, 94, 234, 0.8);
-        }
+        #sleep-btn:active { background: rgba(165, 94, 234, 0.8); }
 
-        @media (max-width: 768px) {
-            #mobile-controls { display: block; }
-        }
+        @media (max-width: 768px) { #mobile-controls { display: block; } }
     </style>
 </head>
 <body>
@@ -272,12 +226,11 @@
             <div id="player" class="character">
                 <div class="dir-pointer"></div>
                 <div class="zzz" id="zzz-particle">Zzz</div>
+                <div class="noise-ring" id="noise-effect"></div>
             </div>
-            <!-- 적들은 JS로 생성 -->
         </div>
     </div>
 
-    <!-- 모바일 컨트롤 -->
     <div id="mobile-controls">
         <div id="joystick-area">
             <div id="joystick-thumb"></div>
@@ -298,9 +251,9 @@
         <div id="end-msg"></div>
         <p style="color:#aaa; margin-bottom:30px;">
             PC: WASD 이동 / SPACE 잠자기<br>
-            Mobile: 조이스틱 이동 / 버튼 잠자기
+            Mobile: 조이스틱 이동 / 버튼 잠자기<br>
+            <span style="color:#ff4757; font-size:14px;">주의: 잠을 자면 소리가 나서 사감이 몰려옵니다!</span>
         </p>
-        
         <div class="btn-group">
             <button id="start-btn">GAME START</button>
             <div class="settings-area">
@@ -316,14 +269,17 @@
             worldH: 2000,
             playerSpeed: 3.0, 
             radius: 15,
-            enemyBaseSpeed: 3.2 
+            enemyBaseSpeed: 3.2,
+            maxViewDist: 4000,
+            noiseRadius: 350 // 잠잘 때 소리가 들리는 범위
         };
 
         const WARDEN_TYPES = {
-            '1yr': { name: "1학년 사감", speed: 3.2, color: 'enemy-1yr', view: 450, angle: 70, msg: "내가 잠깨워주는 사람이야?!!!!!" },
-            '2yr': { name: "2학년 사감", speed: 4.0, color: 'enemy-2yr', view: 500, angle: 80, msg: "이새끼야!!!!!" },
-            '3yr': { name: "3학년 사감", speed: 2.6, color: 'enemy-3yr', view: 550, angle: 90, msg: "일루와!!!!!", ability: 'pull' },
-            'king':{ name: "왕사감", speed: 3.0, color: 'enemy-king', view: 800, angle: 120, msg: "이 왕사감이... 당신을 잡았습니다...!", ability: 'stun' }
+            '1yr': { name: "1학년 사감", speed: 3.2, color: 'enemy-1yr', angle: 70, msg: "내가 잠깨워주는 사람이야?!!!!!" },
+            '2yr': { name: "2학년 사감", speed: 4.0, color: 'enemy-2yr', angle: 80, msg: "이새끼야!!!!!" },
+            '3yr': { name: "3학년 사감", speed: 2.6, color: 'enemy-3yr', angle: 90, msg: "일루와!!!!!", ability: 'pull' },
+            'king':{ name: "왕사감", speed: 3.0, color: 'enemy-king', angle: 120, msg: "이 왕사감님이... 당신을 잡았습니다...!", ability: 'stun' },
+            'principal': { name: "교장", speed: 3.3, color: 'enemy-principal', angle: 100, msg: "공부하세요...!!", ability: 'omni' }
         };
 
         let state = {
@@ -349,6 +305,7 @@
             combo: document.getElementById('combo-display'),
             time: document.getElementById('time-display'),
             zzz: document.getElementById('zzz-particle'),
+            noise: document.getElementById('noise-effect'),
             stunMsg: document.getElementById('stun-msg'),
             overlay: document.getElementById('overlay'),
             endMsg: document.getElementById('end-msg'),
@@ -366,7 +323,6 @@
         const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
         els.mobileToggle.checked = isMobile;
         updateMobileControlsVisibility();
-
         els.mobileToggle.addEventListener('change', updateMobileControlsVisibility);
 
         function updateMobileControlsVisibility() {
@@ -379,7 +335,6 @@
             }
         }
 
-        // --- 맵 생성 ---
         function generateMap() {
             document.querySelectorAll('.desk').forEach(e => e.remove());
             state.obstacles = [];
@@ -394,7 +349,6 @@
                     if(Math.random() > 0.88) continue; 
                     const x = startX + c * gapX;
                     const y = startY + r * gapY;
-                    
                     if (x > 1200 && x < 1800 && y > 800 && y < 1200) continue;
 
                     const div = document.createElement('div');
@@ -407,7 +361,6 @@
             }
         }
 
-        // --- 사감 생성 ---
         function spawnEnemy(typeKey) {
             const type = WARDEN_TYPES[typeKey];
             let ex, ey;
@@ -422,6 +375,7 @@
             const el = document.createElement('div');
             el.className = `character ${type.color}`;
             if(typeKey === 'king') el.innerText = "王"; 
+            if(typeKey === 'principal') el.innerText = "長"; 
             
             const dir = document.createElement('div');
             dir.className = 'dir-pointer';
@@ -442,18 +396,17 @@
                 mode: 'PATROL',
                 targetX: ex, targetY: ey,
                 wait: 0,
-                stuckCounter: 0, // 끼임 감지용 카운터
-                lastX: ex, lastY: ey, // 이전 위치 저장
-                stunCooldown: 0
+                stuckCounter: 0,
+                lastX: ex, lastY: ey,
+                stunCooldown: 0,
+                abilityTimer: 0 // 교장용 타이머
             });
         }
 
-        // --- 물리 및 유틸 ---
         function checkCollide(x, y) {
             if(x < CONFIG.radius || x > CONFIG.worldW - CONFIG.radius || 
                y < CONFIG.radius || y > CONFIG.worldH - CONFIG.radius) return true;
             
-            // 끼임 방지를 위해 충돌 박스를 조금 더 여유있게 계산
             const padding = 8; 
             for(let o of state.obstacles) {
                 if (x > o.x - CONFIG.radius + padding && x < o.x + o.w + CONFIG.radius - padding &&
@@ -494,7 +447,7 @@
                     if(getIntersection(start, end, w.s, w.e)) return false;
                 }
             }
-            return true;
+            return true; 
         }
 
         function initJoystick() {
@@ -532,14 +485,11 @@
                     for(let i=0; i<e.changedTouches.length; i++) {
                         if(e.changedTouches[i].identifier === state.joystick.id) isMyTouch = true;
                     }
-                } else {
-                    isMyTouch = true;
-                }
+                } else { isMyTouch = true; }
 
                 if (isMyTouch) {
                     state.joystick.active = false;
-                    state.joystick.x = 0;
-                    state.joystick.y = 0;
+                    state.joystick.x = 0; state.joystick.y = 0;
                     thumb.style.transform = `translate(-50%, -50%)`;
                 }
             };
@@ -548,16 +498,13 @@
                 const rect = joy.getBoundingClientRect();
                 const centerX = rect.left + rect.width / 2;
                 const centerY = rect.top + rect.height / 2;
-
                 let dx = touch.clientX - centerX;
                 let dy = touch.clientY - centerY;
                 const distance = Math.sqrt(dx*dx + dy*dy);
-
                 if (distance > maxRadius) {
                     dx = (dx / distance) * maxRadius;
                     dy = (dy / distance) * maxRadius;
                 }
-
                 thumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
                 state.joystick.x = dx / maxRadius;
                 state.joystick.y = dy / maxRadius;
@@ -590,9 +537,30 @@
             if (state.gameTime % 60 === 0) {
                 const sec = Math.floor(state.gameTime / 60);
                 els.time.innerText = `생존 시간: ${sec}s`;
+                
+                // 기존 스폰 로직
                 if (sec === 20) spawnEnemy('2yr');
                 if (sec === 40) spawnEnemy('3yr');
                 if (sec === 60) spawnEnemy('king');
+                
+                // 교장 스폰 (90초)
+                if (sec === 90) spawnEnemy('principal');
+
+                // 무한 랜덤 스폰 (90초 이후 30초마다)
+                if (sec > 90 && (sec - 90) % 30 === 0) {
+                    const types = ['1yr', '2yr', '3yr', 'king', 'principal'];
+                    const randomType = types[Math.floor(Math.random() * types.length)];
+                    spawnEnemy(randomType);
+                    
+                    const noti = document.createElement('div');
+                    noti.innerText = "지원군 도착!";
+                    noti.style.position = 'fixed'; noti.style.top = '20%'; noti.style.left='50%';
+                    noti.style.transform = 'translate(-50%, -50%)'; noti.style.color = 'red';
+                    noti.style.fontWeight = 'bold'; noti.style.fontSize = '24px';
+                    noti.style.textShadow = '0 0 5px black';
+                    document.body.appendChild(noti);
+                    setTimeout(() => noti.remove(), 2000);
+                }
             }
 
             // 플레이어
@@ -605,14 +573,32 @@
                 els.stunMsg.style.display = 'none';
 
                 if(state.keys['Space']) {
+                    // 잠자는 중
                     state.sleepTimer++;
                     if(state.sleepTimer % 60 === 0 && state.combo < 10) state.combo++;
                     state.score += Math.floor(state.combo * 5);
                     els.zzz.style.display = 'block';
+                    //els.noise.style.display = 'block'; // 소음 효과
+
+                    // --- 소음 로직 (Noise Mechanic) ---
+                    // 일정 반경 내의 사감은 벽 너머에서도 소리를 듣고 쫓아옴
+                    state.enemies.forEach(e => {
+                        const dist = Math.sqrt((e.x - state.player.x)**2 + (e.y - state.player.y)**2);
+                        if (dist < CONFIG.noiseRadius) {
+                            e.mode = 'CHASE';
+                            e.targetX = state.player.x; 
+                            e.targetY = state.player.y;
+                            e.alertEl.innerText = '♪'; // 소리 아이콘
+                            e.alertEl.style.display = 'block';
+                            e.alertEl.style.color = '#00e5ff';
+                        }
+                    });
+
                 } else {
                     state.sleepTimer = 0;
                     state.combo = 1;
                     els.zzz.style.display = 'none';
+                    els.noise.style.display = 'none';
                     
                     let dx = 0, dy = 0;
                     if(state.keys['ArrowUp'] || state.keys['KeyW']) dy -= 1;
@@ -633,79 +619,89 @@
 
                         if(!checkCollide(state.player.x + ndx, state.player.y)) state.player.x += ndx;
                         if(!checkCollide(state.player.x, state.player.y + ndy)) state.player.y += ndy;
-                        
                         state.player.angle = Math.atan2(ndy, ndx);
                     }
                 }
             }
 
-            // 사감들 업데이트 (스마트 이동 로직 적용)
+            // 사감들 업데이트
             state.enemies.forEach(e => {
                 const p = state.player;
                 const dist = Math.sqrt((e.x - p.x)**2 + (e.y - p.y)**2);
 
-                // 시야 체크
+                // 1. 시야 체크 (무한 거리)
                 let canSee = false;
-                if(dist < e.data.view) {
-                    let angleToP = Math.atan2(p.y - e.y, p.x - e.x) - e.angle;
-                    while(angleToP <= -Math.PI) angleToP += Math.PI*2;
-                    while(angleToP > Math.PI) angleToP -= Math.PI*2;
-                    if(Math.abs(angleToP) < (e.data.angle * Math.PI / 180) / 2) {
-                        if(hasLineOfSight(e, p)) canSee = true;
-                    }
+                let angleToP = Math.atan2(p.y - e.y, p.x - e.x) - e.angle;
+                while(angleToP <= -Math.PI) angleToP += Math.PI*2;
+                while(angleToP > Math.PI) angleToP -= Math.PI*2;
+                
+                if(Math.abs(angleToP) < (e.data.angle * Math.PI / 180) / 2) {
+                    if(hasLineOfSight(e, p)) canSee = true;
                 }
 
-                // 특수 능력
+                // 특수 능력 체크
                 if (e.stunCooldown > 0) e.stunCooldown--;
+                
+                // 왕사감: 기절
                 if (e.type === 'king' && dist < 150 && !p.stunned && e.stunCooldown <= 0) {
                     p.stunned = 120; e.stunCooldown = 180;
                 }
+                // 3학년: 끌어당기기
                 if (e.type === '3yr' && canSee) {
                     const pullAngle = Math.atan2(e.y - p.y, e.x - p.x);
                     const pullSpeed = 1.5;
                     if (!checkCollide(p.x + Math.cos(pullAngle)*pullSpeed, p.y)) p.x += Math.cos(pullAngle)*pullSpeed;
                     if (!checkCollide(p.x, p.y + Math.sin(pullAngle)*pullSpeed)) p.y += Math.sin(pullAngle)*pullSpeed;
                 }
+                // 교장: 20초마다 위치 파악 (Global Scan)
+                if (e.type === 'principal') {
+                    e.abilityTimer++;
+                    if (e.abilityTimer > 1200) { // 20초 (60fps 기준)
+                        e.mode = 'CHASE';
+                        e.targetX = p.x; e.targetY = p.y;
+                        e.abilityTimer = 0;
+                        e.alertEl.innerText = '👁️'; // 감지 아이콘
+                        e.alertEl.style.display = 'block';
+                        e.alertEl.style.color = 'white';
+                    }
+                }
 
-                // AI 상태 변경
+                // AI 상태
                 if (canSee) {
                     e.mode = 'CHASE';
                     e.targetX = p.x; e.targetY = p.y;
                     e.wait = 0;
-                    e.alertEl.style.display = 'block';
-                    e.alertEl.innerText = '!';
-                    e.alertEl.style.color = '#ff2a6d';
+                    e.alertEl.style.display = 'block'; e.alertEl.innerText = '!'; e.alertEl.style.color = '#ff2a6d';
                 } else if (e.mode === 'CHASE') {
                     e.mode = 'SEARCH';
                     e.wait = 120;
-                    e.alertEl.innerText = '?';
-                    e.alertEl.style.color = '#ffcc00';
+                    if (e.alertEl.innerText === '!') { // 소리나 교장 능력이 아닐 때만 ?로 변경
+                        e.alertEl.innerText = '?'; e.alertEl.style.color = '#ffcc00';
+                    }
                 }
 
                 let tx = e.targetX, ty = e.targetY;
                 let speed = e.data.speed;
 
-                // 순찰/수색 로직
+                // 순찰 로직
                 if (e.mode === 'PATROL') {
                     speed *= 0.5;
                     const d = Math.sqrt((tx - e.x)**2 + (ty - e.y)**2);
                     if (d < 20) {
-                        e.targetX = Math.random() * (CONFIG.worldW - 100) + 50;
-                        e.targetY = Math.random() * (CONFIG.worldH - 100) + 50;
+                        e.targetX = Math.random() * CONFIG.worldW;
+                        e.targetY = Math.random() * CONFIG.worldH;
+                        e.targetX = Math.max(20, Math.min(CONFIG.worldW - 20, e.targetX));
+                        e.targetY = Math.max(20, Math.min(CONFIG.worldH - 20, e.targetY));
                     }
                 } else if (e.mode === 'SEARCH') {
                     const d = Math.sqrt((tx - e.x)**2 + (ty - e.y)**2);
                     if (d < 10) {
-                        if (e.wait > 0) {
-                            e.wait--; e.angle += 0.05; return;
-                        } else {
-                            e.mode = 'PATROL';
-                            e.alertEl.style.display = 'none';
-                        }
+                        if (e.wait > 0) { e.wait--; e.angle += 0.05; return; }
+                        else { e.mode = 'PATROL'; e.alertEl.style.display = 'none'; }
                     }
                 }
 
-                // --- 이동 및 충돌 해결 (핵심 개선 부분) ---
+                // 이동
                 const dx = tx - e.x;
                 const dy = ty - e.y;
                 const dLen = Math.sqrt(dx*dx + dy*dy);
@@ -714,75 +710,53 @@
                     const mx = (dx / dLen) * speed;
                     const my = (dy / dLen) * speed;
 
-                    // 부드러운 회전
                     let targetAngle = Math.atan2(my, mx);
                     let diff = targetAngle - e.angle;
                     while(diff <= -Math.PI) diff += Math.PI*2;
                     while(diff > Math.PI) diff -= Math.PI*2;
                     e.angle += diff * 0.1;
 
-                    // 1. 기본 이동 시도 (X, Y 독립 체크 - 미끄러짐 구현)
                     let movedX = false;
                     let movedY = false;
-                    
                     if (!checkCollide(e.x + mx, e.y)) { e.x += mx; movedX = true; }
                     if (!checkCollide(e.x, e.y + my)) { e.y += my; movedY = true; }
 
-                    // 2. 완전히 막혔을 때 (코너/벽) - 회피 기동(Steering)
                     if (!movedX && !movedY) {
-                        // 좌우 45도, 90도 각도로 탈출구 탐색
                         const escapeAngles = [45, -45, 90, -90];
-                        let escaped = false;
                         for (let ang of escapeAngles) {
                             const rad = (e.angle + ang * Math.PI / 180);
                             const sx = Math.cos(rad) * speed;
                             const sy = Math.sin(rad) * speed;
                             if (!checkCollide(e.x + sx, e.y + sy)) {
-                                e.x += sx; e.y += sy;
-                                escaped = true;
-                                break;
+                                e.x += sx; e.y += sy; break;
                             }
                         }
                     }
                 }
 
-                // 3. 강제 탈출 (Unstuck) - 실제로 움직이지 못하고 있으면 감지
+                // 끼임 탈출
                 const moveDist = Math.sqrt((e.x - e.lastX)**2 + (e.y - e.lastY)**2);
                 if (moveDist < 0.5) {
                     e.stuckCounter++;
-                    // 약 0.5초 이상 끼어있으면
                     if (e.stuckCounter > 30) {
-                        // 1단계: 목표 지점 변경 (순찰 모드로 전환)
                         e.mode = 'PATROL';
-                        e.targetX = Math.random() * (CONFIG.worldW - 100) + 50;
-                        e.targetY = Math.random() * (CONFIG.worldH - 100) + 50;
-                        
-                        // 2단계: 심각하게 끼인 경우 약간 텔레포트 (벽 밖으로 튕겨내기)
+                        e.targetX = Math.random() * CONFIG.worldW;
+                        e.targetY = Math.random() * CONFIG.worldH;
                         if (e.stuckCounter > 60) {
-                            // 랜덤 방향으로 살짝 이동 시도
                             for(let i=0; i<8; i++) {
                                 const ang = Math.random() * Math.PI * 2;
                                 const nx = e.x + Math.cos(ang) * 20;
                                 const ny = e.y + Math.sin(ang) * 20;
-                                if(!checkCollide(nx, ny)) {
-                                    e.x = nx; e.y = ny;
-                                    break;
-                                }
+                                if(!checkCollide(nx, ny)) { e.x = nx; e.y = ny; break; }
                             }
                             e.stuckCounter = 0;
                         }
                     }
-                } else {
-                    e.stuckCounter = 0;
-                }
+                } else { e.stuckCounter = 0; }
                 
-                // 위치 저장
-                e.lastX = e.x;
-                e.lastY = e.y;
+                e.lastX = e.x; e.lastY = e.y;
 
-                if (dist < CONFIG.radius * 2) {
-                    gameOver(e);
-                }
+                if (dist < CONFIG.radius * 2) gameOver(e);
             });
         }
 
@@ -807,6 +781,13 @@
             const ctx = els.ctx;
             ctx.clearRect(0, 0, CONFIG.worldW, CONFIG.worldH);
 
+            const mapBorders = [
+                {s:{x:0, y:0}, e:{x:CONFIG.worldW, y:0}},
+                {s:{x:CONFIG.worldW, y:0}, e:{x:CONFIG.worldW, y:CONFIG.worldH}},
+                {s:{x:CONFIG.worldW, y:CONFIG.worldH}, e:{x:0, y:CONFIG.worldH}},
+                {s:{x:0, y:CONFIG.worldH}, e:{x:0, y:0}}
+            ];
+
             state.enemies.forEach(e => {
                 if(!e.visible) return;
 
@@ -815,13 +796,16 @@
                 const startAngle = e.angle - viewAngle/2;
                 const step = viewAngle / rays;
 
-                ctx.fillStyle = e.type === 'king' ? "rgba(165, 94, 234, 0.3)" : "rgba(255, 71, 87, 0.3)";
+                if (e.type === 'king') ctx.fillStyle = "rgba(165, 94, 234, 0.3)";
+                else if (e.type === 'principal') ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+                else ctx.fillStyle = "rgba(255, 71, 87, 0.3)";
+
                 ctx.beginPath();
                 ctx.moveTo(e.x, e.y);
 
                 for(let i=0; i<=rays; i++) {
                     const ang = startAngle + step * i;
-                    const rayEnd = { x: e.x + Math.cos(ang)*e.data.view, y: e.y + Math.sin(ang)*e.data.view };
+                    const rayEnd = { x: e.x + Math.cos(ang)*CONFIG.maxViewDist, y: e.y + Math.sin(ang)*CONFIG.maxViewDist };
                     
                     let closest = rayEnd;
                     let minT = 1.0;
@@ -838,6 +822,12 @@
                             if(isect && isect.param < minT) { minT = isect.param; closest = isect; }
                         }
                     }
+
+                    for(let w of mapBorders) {
+                        const isect = getIntersection(e, rayEnd, w.s, w.e);
+                        if(isect && isect.param < minT) { minT = isect.param; closest = isect; }
+                    }
+
                     ctx.lineTo(closest.x, closest.y);
                 }
                 ctx.closePath();
@@ -858,16 +848,14 @@
             els.overlay.classList.remove('hidden');
             document.getElementById('title-text').innerText = "검거됨";
             els.endMsg.innerText = `"${killer.data.msg}"`;
-            els.endMsg.style.color = killer.type === 'king' ? '#a55eea' : '#ff4757';
+            els.endMsg.style.color = killer.type === 'king' ? '#a55eea' : (killer.type === 'principal' ? '#ffffff' : '#ff4757');
             els.btn.innerText = "다시 도전";
         }
 
         els.btn.addEventListener('click', () => {
             if(state.animId) cancelAnimationFrame(state.animId);
-            
             state.enemies.forEach(e => e.el.remove());
             state.enemies = [];
-
             generateMap();
             state.running = true;
             state.score = 0;
@@ -875,9 +863,7 @@
             state.gameTime = 0;
             const spawn = findSafeSpawn();
             state.player = { x: spawn.x, y: spawn.y, angle: 0, stunned: 0 };
-            
             spawnEnemy('1yr');
-
             els.overlay.classList.add('hidden');
             loop();
         });
