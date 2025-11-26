@@ -2,8 +2,8 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Stealth Sleep: Warden's Nightmare</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Stealth Sleep: Warden's Nightmare (AI Fix)</title>
     <style>
         :root {
             --bg-color: #0d0d0d;
@@ -22,6 +22,8 @@
             font-family: 'Consolas', sans-serif;
             color: var(--text-color);
             user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
         }
 
         #viewport {
@@ -164,6 +166,14 @@
         }
         h1 { font-size: 40px; margin-bottom: 10px; color: var(--player-color); }
         #end-msg { font-size: 28px; color: #ff4757; margin-bottom: 20px; font-weight: bold; }
+        
+        .btn-group {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+        
         button {
             padding: 15px 40px;
             font-size: 18px;
@@ -173,58 +183,84 @@
             border-radius: 30px;
             cursor: pointer;
             font-weight: bold;
+            transition: 0.2s;
         }
         button:hover { background: var(--player-color); color: #000; }
-        .hidden { display: none !important; }
-
-        /* Mobile controls */
-        #mobile-controls {
-            position: fixed;
-            left: 20px;
-            bottom: 20px;
-            z-index: 400;
+        
+        .settings-area {
+            margin-top: 20px;
             display: flex;
-            gap: 18px;
             align-items: center;
-            pointer-events: none; /* enable only children */
-        }
-        #mobile-joystick {
-            width: 110px;
-            height: 110px;
-            background: rgba(255,255,255,0.03);
-            border: 1px solid rgba(255,255,255,0.06);
-            border-radius: 50%;
-            backdrop-filter: blur(4px);
-            pointer-events: auto;
-            position: relative;
-            touch-action: none;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.6);
-        }
-        #mobile-thumb {
-            position: absolute;
-            left: 50%; top: 50%;
-            width: 40px; height: 40px;
-            transform: translate(-50%, -50%);
-            background: rgba(0,230,255,0.9);
-            border-radius: 50%;
-            pointer-events: none;
-            box-shadow: 0 6px 16px rgba(0,0,0,0.5), 0 0 12px rgba(0,230,255,0.25);
-        }
-        .mobile-sleep-btn {
-            width: 92px; height: 92px;
-            border-radius: 50%; border: none;
-            background: linear-gradient(135deg, rgba(0,230,255,0.06), rgba(165,94,234,0.06));
-            color: var(--player-color);
-            font-weight: bold;
-            pointer-events: auto;
-            box-shadow: 0 6px 18px rgba(0,0,0,0.6), 0 0 18px rgba(165,94,234,0.08);
-            backdrop-filter: blur(4px);
+            gap: 10px;
+            color: #aaa;
             font-size: 16px;
         }
+        input[type="checkbox"] {
+            width: 20px; height: 20px;
+            accent-color: var(--player-color);
+        }
 
-        /* Hide mobile controls on large screens; will be shown via JS when needed */
-        @media (min-width: 801px) {
-            #mobile-controls { display: none !important; }
+        .hidden { display: none !important; }
+
+        /* --- Mobile Controls --- */
+        #mobile-controls {
+            position: fixed;
+            bottom: 30px;
+            left: 0;
+            width: 100%;
+            height: 150px;
+            z-index: 150;
+            display: none;
+            pointer-events: none;
+        }
+
+        #joystick-area {
+            position: absolute;
+            left: 40px;
+            bottom: 20px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            pointer-events: auto;
+            touch-action: none;
+        }
+
+        #joystick-thumb {
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 50px; height: 50px;
+            background: rgba(0, 229, 255, 0.8);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 10px var(--player-color);
+        }
+
+        #sleep-btn {
+            position: absolute;
+            right: 40px;
+            bottom: 30px;
+            width: 90px;
+            height: 90px;
+            border-radius: 50%;
+            background: rgba(165, 94, 234, 0.3);
+            border: 2px solid #a55eea;
+            color: white;
+            font-weight: bold;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            pointer-events: auto;
+            user-select: none;
+            touch-action: none;
+        }
+        #sleep-btn:active {
+            background: rgba(165, 94, 234, 0.8);
+        }
+
+        @media (max-width: 768px) {
+            #mobile-controls { display: block; }
         }
     </style>
 </head>
@@ -241,6 +277,14 @@
         </div>
     </div>
 
+    <!-- 모바일 컨트롤 -->
+    <div id="mobile-controls">
+        <div id="joystick-area">
+            <div id="joystick-thumb"></div>
+        </div>
+        <div id="sleep-btn">SLEEP</div>
+    </div>
+
     <div id="stun-msg">기절!!</div>
 
     <div id="mini-ui">
@@ -253,31 +297,28 @@
         <h1 id="title-text">Stealth Sleep</h1>
         <div id="end-msg"></div>
         <p style="color:#aaa; margin-bottom:30px;">
-            시간이 지날수록 더 강력한 사감이 등장합니다.<br>
-            왕사감을 만나면 기절할 수 있으니 주의하세요!
+            PC: WASD 이동 / SPACE 잠자기<br>
+            Mobile: 조이스틱 이동 / 버튼 잠자기
         </p>
-        <button id="start-btn">GAME START</button>
-    </div>
-
-    <!-- 모바일 컨트롤: 조이스틱 + 잠자기 버튼 -->
-    <div id="mobile-controls" class="hidden">
-        <div id="mobile-joystick">
-            <div id="mobile-thumb"></div>
+        
+        <div class="btn-group">
+            <button id="start-btn">GAME START</button>
+            <div class="settings-area">
+                <input type="checkbox" id="mobile-toggle" checked>
+                <label for="mobile-toggle">모바일 컨트롤 표시</label>
+            </div>
         </div>
-        <button id="mobile-sleep" class="mobile-sleep-btn">잠자기</button>
     </div>
 
     <script>
-        // --- 설정 (속도 감소 반영) ---
         const CONFIG = {
             worldW: 3000,
             worldH: 2000,
-            playerSpeed: 3.0, // 속도 감소
+            playerSpeed: 3.0, 
             radius: 15,
-            enemyBaseSpeed: 3.2 // 사감 기본 속도 (플레이어보다 약간 빠름)
+            enemyBaseSpeed: 3.2 
         };
 
-        // --- 사감 데이터 ---
         const WARDEN_TYPES = {
             '1yr': { name: "1학년 사감", speed: 3.2, color: 'enemy-1yr', view: 450, angle: 70, msg: "내가 잠깨워주는 사람이야?!!!!!" },
             '2yr': { name: "2학년 사감", speed: 4.0, color: 'enemy-2yr', view: 500, angle: 80, msg: "이새끼야!!!!!" },
@@ -285,22 +326,20 @@
             'king':{ name: "왕사감", speed: 3.0, color: 'enemy-king', view: 800, angle: 120, msg: "이 왕사감이... 당신을 잡았습니다...!", ability: 'stun' }
         };
 
-        // --- 상태 변수 ---
         let state = {
             running: false,
             score: 0,
             combo: 1,
             sleepTimer: 0,
             gameTime: 0,
-            spawnTimer: 0,
             keys: {},
+            joystick: { x: 0, y: 0, active: false, id: null },
             player: { x: 0, y: 0, angle: 0, stunned: 0 },
-            enemies: [], // 사감 배열
+            enemies: [],
             obstacles: [],
             animId: null
         };
 
-        // --- DOM ---
         const els = {
             world: document.getElementById('world'),
             player: document.getElementById('player'),
@@ -313,98 +352,32 @@
             stunMsg: document.getElementById('stun-msg'),
             overlay: document.getElementById('overlay'),
             endMsg: document.getElementById('end-msg'),
-            btn: document.getElementById('start-btn')
-            ,
-            // mobile controls (created in DOM below)
-            mobileControls: null,
-            mobileJoystick: null,
-            mobileThumb: null,
-            mobileSleepBtn: null
+            btn: document.getElementById('start-btn'),
+            mobileCtrl: document.getElementById('mobile-controls'),
+            joyArea: document.getElementById('joystick-area'),
+            joyThumb: document.getElementById('joystick-thumb'),
+            sleepBtn: document.getElementById('sleep-btn'),
+            mobileToggle: document.getElementById('mobile-toggle')
         };
         
         els.canvas.width = CONFIG.worldW;
         els.canvas.height = CONFIG.worldH;
 
-        // --- mobile / touch detection ---
-        function isMobileMode() {
-            return ('ontouchstart' in window) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) || window.innerWidth <= 800;
+        const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+        els.mobileToggle.checked = isMobile;
+        updateMobileControlsVisibility();
+
+        els.mobileToggle.addEventListener('change', updateMobileControlsVisibility);
+
+        function updateMobileControlsVisibility() {
+            if (els.mobileToggle.checked) {
+                els.mobileCtrl.classList.remove('hidden');
+                els.mobileCtrl.style.display = 'block';
+            } else {
+                els.mobileCtrl.classList.add('hidden');
+                els.mobileCtrl.style.display = 'none';
+            }
         }
-
-        // initialize mobile controls references and touch state
-        state.touch = { active: false, dx: 0, dy: 0, baseX: 0, baseY: 0, radius: 44 };
-
-        function initMobileControls() {
-            els.mobileControls = document.getElementById('mobile-controls');
-            els.mobileJoystick = document.getElementById('mobile-joystick');
-            els.mobileThumb = document.getElementById('mobile-thumb');
-            els.mobileSleepBtn = document.getElementById('mobile-sleep');
-
-            if (!els.mobileControls) return;
-
-            // show only on mobile mode
-            if (isMobileMode()) els.mobileControls.classList.remove('hidden');
-            else els.mobileControls.classList.add('hidden');
-
-            // joystick pointer handlers
-            function onStart(ev) {
-                ev.preventDefault();
-                const rect = els.mobileJoystick.getBoundingClientRect();
-                // base center
-                state.touch.baseX = rect.left + rect.width/2;
-                state.touch.baseY = rect.top + rect.height/2;
-                state.touch.active = true;
-                // handle initial move
-                onMove(ev);
-            }
-
-            function onMove(ev) {
-                if (!state.touch.active) return;
-                const p = ev.touches ? ev.touches[0] : ev; // support touch and pointer
-                const vx = p.clientX - state.touch.baseX;
-                const vy = p.clientY - state.touch.baseY;
-                const max = Math.min(els.mobileJoystick.clientWidth, els.mobileJoystick.clientHeight)/2 - 10;
-                let nx = vx, ny = vy;
-                const len = Math.sqrt(nx*nx + ny*ny) || 1;
-                if (len > max) { nx = nx / len * max; ny = ny / len * max; }
-                // normalized -1..1
-                state.touch.dx = nx / max;
-                state.touch.dy = ny / max;
-                // move thumb
-                els.mobileThumb.style.transform = `translate(${nx}px, ${ny}px)`;
-            }
-
-            function onEnd(ev) {
-                ev.preventDefault && ev.preventDefault();
-                state.touch.active = false;
-                state.touch.dx = 0; state.touch.dy = 0;
-                els.mobileThumb.style.transform = `translate(-50%, -50%)`;
-            }
-
-            // pointer events (works for touch and mouse)
-            els.mobileJoystick.addEventListener('pointerdown', onStart);
-            window.addEventListener('pointermove', onMove);
-            window.addEventListener('pointerup', onEnd);
-
-            // also support touch events just in case
-            els.mobileJoystick.addEventListener('touchstart', onStart, {passive:false});
-            els.mobileJoystick.addEventListener('touchmove', onMove, {passive:false});
-            els.mobileJoystick.addEventListener('touchend', onEnd);
-
-            // sleep button handlers (act as space key)
-            els.mobileSleepBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); state.keys['Space']=true; });
-            els.mobileSleepBtn.addEventListener('pointerup', e=>{ e.preventDefault(); state.keys['Space']=false; });
-            els.mobileSleepBtn.addEventListener('touchstart', e=>{ e.preventDefault(); state.keys['Space']=true; }, {passive:false});
-            els.mobileSleepBtn.addEventListener('touchend', e=>{ e.preventDefault(); state.keys['Space']=false; });
-
-            // resize handler to toggle mobile UI
-            window.addEventListener('resize', () => {
-                if (isMobileMode()) els.mobileControls.classList.remove('hidden');
-                else els.mobileControls.classList.add('hidden');
-            });
-        }
-
-        // init mobile controls after DOM
-        initMobileControls();
 
         // --- 맵 생성 ---
         function generateMap() {
@@ -418,11 +391,10 @@
 
             for(let r=0; r<rows; r++){
                 for(let c=0; c<cols; c++){
-                    if(Math.random() > 0.88) continue; // 길 만들기
+                    if(Math.random() > 0.88) continue; 
                     const x = startX + c * gapX;
                     const y = startY + r * gapY;
                     
-                    // 중앙 안전지대
                     if (x > 1200 && x < 1800 && y > 800 && y < 1200) continue;
 
                     const div = document.createElement('div');
@@ -438,7 +410,6 @@
         // --- 사감 생성 ---
         function spawnEnemy(typeKey) {
             const type = WARDEN_TYPES[typeKey];
-            // 플레이어와 먼 곳에서 스폰
             let ex, ey;
             let safe = false;
             while(!safe) {
@@ -450,7 +421,6 @@
 
             const el = document.createElement('div');
             el.className = `character ${type.color}`;
-            // 왕사감은 텍스트 표시
             if(typeKey === 'king') el.innerText = "王"; 
             
             const dir = document.createElement('div');
@@ -472,20 +442,19 @@
                 mode: 'PATROL',
                 targetX: ex, targetY: ey,
                 wait: 0,
-                stuckCounter: 0,
-                stunCooldown: 0,
-                lastX: ex, lastY: ey
+                stuckCounter: 0, // 끼임 감지용 카운터
+                lastX: ex, lastY: ey, // 이전 위치 저장
+                stunCooldown: 0
             });
         }
 
         // --- 물리 및 유틸 ---
         function checkCollide(x, y) {
-            // 맵 경계
             if(x < CONFIG.radius || x > CONFIG.worldW - CONFIG.radius || 
                y < CONFIG.radius || y > CONFIG.worldH - CONFIG.radius) return true;
             
-            // 책상 충돌 (약간의 여유를 둬서 끼임 방지)
-            const padding = 5; 
+            // 끼임 방지를 위해 충돌 박스를 조금 더 여유있게 계산
+            const padding = 8; 
             for(let o of state.obstacles) {
                 if (x > o.x - CONFIG.radius + padding && x < o.x + o.w + CONFIG.radius - padding &&
                     y > o.y - CONFIG.radius + padding && y < o.y + o.h + CONFIG.radius - padding) {
@@ -495,52 +464,21 @@
             return false;
         }
 
-        // --- 플레이어 안전 스폰 지점 찾기 ---
         function findSafeSpawn() {
-            // 우선 중앙 안전지대 시도
             const preferred = { x: 1500, y: 1000 };
             if (!checkCollide(preferred.x, preferred.y)) return preferred;
-
-            // 몇 가지 후보 지점(모서리와 랜덤)을 시험
-            const candidates = [
-                { x: 1500, y: 1000 },
-                { x: 200, y: 200 },
-                { x: CONFIG.worldW - 200, y: 200 },
-                { x: 200, y: CONFIG.worldH - 200 },
-                { x: CONFIG.worldW - 200, y: CONFIG.worldH - 200 }
-            ];
-
-            for (let c of candidates) {
-                if (!checkCollide(c.x, c.y)) return c;
-            }
-
-            // 랜덤 시도 (성공할 때까지 제한된 횟수)
-            for (let i = 0; i < 300; i++) {
-                const x = Math.random() * (CONFIG.worldW - 200) + 100;
-                const y = Math.random() * (CONFIG.worldH - 200) + 100;
-                if (!checkCollide(x, y)) return { x, y };
-            }
-
-            // 실패 시 마지막 안전값 반환
-            return { x: Math.min(Math.max(1500, CONFIG.radius), CONFIG.worldW - CONFIG.radius),
-                     y: Math.min(Math.max(1000, CONFIG.radius), CONFIG.worldH - CONFIG.radius) };
+            return { x: 200, y: 200 };
         }
 
-        // 선분 교차 (시야용)
         function getIntersection(p0, p1, p2, p3) {
             const s1x = p1.x - p0.x, s1y = p1.y - p0.y;
             const s2x = p3.x - p2.x, s2y = p3.y - p2.y;
-            const s = (-s1y * (p0.x - p2.x) + s1x * (p0.y - p2.y)) / (-s2x * s1y + s1x * s2y);
-            const t = ( s2x * (p0.y - p2.y) - s2y * (p0.x - p2.x)) / (-s2x * s1y + s1x * s2y);
-            // 분모가 0인 경우(평행) 처리 필요하지만 간단히 생략
             const det = (-s2x * s1y + s1x * s2y);
             if (det === 0) return null;
-
-            const s_val = (-s1y * (p0.x - p2.x) + s1x * (p0.y - p2.y)) / det;
-            const t_val = ( s2x * (p0.y - p2.y) - s2y * (p0.x - p2.x)) / det;
-
-            if (s_val >= 0 && s_val <= 1 && t_val >= 0 && t_val <= 1) 
-                return { x: p0.x + (t_val * s1x), y: p0.y + (t_val * s1y), param: t_val };
+            const s = (-s1y * (p0.x - p2.x) + s1x * (p0.y - p2.y)) / det;
+            const t = ( s2x * (p0.y - p2.y) - s2y * (p0.x - p2.x)) / det;
+            if (s >= 0 && s <= 1 && t >= 0 && t <= 1) 
+                return { x: p0.x + (t * s1x), y: p0.y + (t * s1y), param: t };
             return null;
         }
 
@@ -559,15 +497,99 @@
             return true;
         }
 
+        function initJoystick() {
+            const joy = els.joyArea;
+            const thumb = els.joyThumb;
+            const maxRadius = 35;
+
+            const handleStart = (e) => {
+                e.preventDefault();
+                const touch = e.changedTouches ? e.changedTouches[0] : e;
+                state.joystick.id = touch.identifier;
+                state.joystick.active = true;
+                updateJoy(touch);
+            };
+
+            const handleMove = (e) => {
+                e.preventDefault();
+                if (!state.joystick.active) return;
+                let touch = e;
+                if (e.changedTouches) {
+                    for(let i=0; i<e.changedTouches.length; i++) {
+                        if(e.changedTouches[i].identifier === state.joystick.id) {
+                            touch = e.changedTouches[i];
+                            break;
+                        }
+                    }
+                }
+                updateJoy(touch);
+            };
+
+            const handleEnd = (e) => {
+                e.preventDefault();
+                let isMyTouch = false;
+                if (e.changedTouches) {
+                    for(let i=0; i<e.changedTouches.length; i++) {
+                        if(e.changedTouches[i].identifier === state.joystick.id) isMyTouch = true;
+                    }
+                } else {
+                    isMyTouch = true;
+                }
+
+                if (isMyTouch) {
+                    state.joystick.active = false;
+                    state.joystick.x = 0;
+                    state.joystick.y = 0;
+                    thumb.style.transform = `translate(-50%, -50%)`;
+                }
+            };
+
+            const updateJoy = (touch) => {
+                const rect = joy.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+
+                let dx = touch.clientX - centerX;
+                let dy = touch.clientY - centerY;
+                const distance = Math.sqrt(dx*dx + dy*dy);
+
+                if (distance > maxRadius) {
+                    dx = (dx / distance) * maxRadius;
+                    dy = (dy / distance) * maxRadius;
+                }
+
+                thumb.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+                state.joystick.x = dx / maxRadius;
+                state.joystick.y = dy / maxRadius;
+            };
+
+            joy.addEventListener('touchstart', handleStart, {passive: false});
+            joy.addEventListener('touchmove', handleMove, {passive: false});
+            joy.addEventListener('touchend', handleEnd, {passive: false});
+            joy.addEventListener('mousedown', handleStart);
+            window.addEventListener('mousemove', handleMove);
+            window.addEventListener('mouseup', handleEnd);
+        }
+
+        function initSleepBtn() {
+            const btn = els.sleepBtn;
+            const start = (e) => { e.preventDefault(); state.keys['Space'] = true; btn.style.background = 'rgba(165, 94, 234, 0.8)'; };
+            const end = (e) => { e.preventDefault(); state.keys['Space'] = false; btn.style.background = 'rgba(165, 94, 234, 0.3)'; };
+            btn.addEventListener('touchstart', start, {passive: false});
+            btn.addEventListener('touchend', end, {passive: false});
+            btn.addEventListener('mousedown', start);
+            btn.addEventListener('mouseup', end);
+        }
+
+        initJoystick();
+        initSleepBtn();
+
         // --- 업데이트 로직 ---
         function update() {
-            // 시간 관리 및 스폰
             state.gameTime++;
-            if (state.gameTime % 60 === 0) { // 1초마다
+            if (state.gameTime % 60 === 0) {
                 const sec = Math.floor(state.gameTime / 60);
                 els.time.innerText = `생존 시간: ${sec}s`;
-                
-                // 스폰 로직
                 if (sec === 20) spawnEnemy('2yr');
                 if (sec === 40) spawnEnemy('3yr');
                 if (sec === 60) spawnEnemy('king');
@@ -592,86 +614,60 @@
                     state.combo = 1;
                     els.zzz.style.display = 'none';
                     
-                    // Movement: keyboard or mobile touch joystick
                     let dx = 0, dy = 0;
-                    if (state.touch && state.touch.active) {
-                        dx = state.touch.dx;
-                        dy = state.touch.dy;
-                    } else {
-                        if(state.keys['ArrowUp'] || state.keys['KeyW']) dy -= 1;
-                        if(state.keys['ArrowDown'] || state.keys['KeyS']) dy += 1;
-                        if(state.keys['ArrowLeft'] || state.keys['KeyA']) dx -= 1;
-                        if(state.keys['ArrowRight'] || state.keys['KeyD']) dx += 1;
+                    if(state.keys['ArrowUp'] || state.keys['KeyW']) dy -= 1;
+                    if(state.keys['ArrowDown'] || state.keys['KeyS']) dy += 1;
+                    if(state.keys['ArrowLeft'] || state.keys['KeyA']) dx -= 1;
+                    if(state.keys['ArrowRight'] || state.keys['KeyD']) dx += 1;
+
+                    if (state.joystick.active) {
+                        dx = state.joystick.x;
+                        dy = state.joystick.y;
                     }
 
                     if(dx !== 0 || dy !== 0) {
                         const len = Math.sqrt(dx*dx + dy*dy);
-                        dx = (dx/len) * CONFIG.playerSpeed;
-                        dy = (dy/len) * CONFIG.playerSpeed;
+                        const moveSpeed = (len > 1 ? 1 : len) * CONFIG.playerSpeed;
+                        const ndx = (dx/len) * moveSpeed;
+                        const ndy = (dy/len) * moveSpeed;
 
-                        // 충돌 버그 수정: X축, Y축 독립적으로 체크
-                        if(!checkCollide(state.player.x + dx, state.player.y)) state.player.x += dx;
-                        if(!checkCollide(state.player.x, state.player.y + dy)) state.player.y += dy;
+                        if(!checkCollide(state.player.x + ndx, state.player.y)) state.player.x += ndx;
+                        if(!checkCollide(state.player.x, state.player.y + ndy)) state.player.y += ndy;
                         
-                        state.player.angle = Math.atan2(dy, dx);
+                        state.player.angle = Math.atan2(ndy, ndx);
                     }
                 }
             }
 
-            // 사감들 업데이트
+            // 사감들 업데이트 (스마트 이동 로직 적용)
             state.enemies.forEach(e => {
                 const p = state.player;
                 const dist = Math.sqrt((e.x - p.x)**2 + (e.y - p.y)**2);
 
-                // QUICK UNSTICK: if enemy somehow is overlapping a desk/wall, try small nudges
-                if (checkCollide(e.x, e.y)) {
-                    let freed = false;
-                    const nudgeDist = CONFIG.radius * 2 + 6;
-                    for (let a = 0; a < 12; a++) {
-                        const ang = Math.random() * Math.PI * 2;
-                        const nx = e.x + Math.cos(ang) * nudgeDist;
-                        const ny = e.y + Math.sin(ang) * nudgeDist;
-                        if (!checkCollide(nx, ny)) { e.x = nx; e.y = ny; e.stuckCounter = 0; freed = true; break; }
-                    }
-                    if (!freed) {
-                        // fallback: give this enemy a new distant waypoint
-                        e.targetX = Math.random() * (CONFIG.worldW - 200) + 100;
-                        e.targetY = Math.random() * (CONFIG.worldH - 200) + 100;
-                        e.mode = 'PATROL';
-                        e.stuckCounter = 0;
-                    }
-                }
-
-                // 1. 시야 체크
+                // 시야 체크
                 let canSee = false;
                 if(dist < e.data.view) {
                     let angleToP = Math.atan2(p.y - e.y, p.x - e.x) - e.angle;
                     while(angleToP <= -Math.PI) angleToP += Math.PI*2;
                     while(angleToP > Math.PI) angleToP -= Math.PI*2;
-                    
                     if(Math.abs(angleToP) < (e.data.angle * Math.PI / 180) / 2) {
                         if(hasLineOfSight(e, p)) canSee = true;
                     }
                 }
 
-                // 2. 특수 능력 (안 보여도 거리 내면 발동 - 왕사감)
-                // - add per-king cooldown to prevent immediate re-stun when player stays in range
+                // 특수 능력
                 if (e.stunCooldown > 0) e.stunCooldown--;
                 if (e.type === 'king' && dist < 150 && !p.stunned && e.stunCooldown <= 0) {
-                    p.stunned = 120; // 2초 기절
-                    e.stunCooldown = 180; // 3초 재기절 쿨다운
+                    p.stunned = 120; e.stunCooldown = 180;
                 }
-
-                // 3. 특수 능력 (보여야 발동 - 3학년)
                 if (e.type === '3yr' && canSee) {
-                    // 플레이어를 끌어당김
                     const pullAngle = Math.atan2(e.y - p.y, e.x - p.x);
                     const pullSpeed = 1.5;
                     if (!checkCollide(p.x + Math.cos(pullAngle)*pullSpeed, p.y)) p.x += Math.cos(pullAngle)*pullSpeed;
                     if (!checkCollide(p.x, p.y + Math.sin(pullAngle)*pullSpeed)) p.y += Math.sin(pullAngle)*pullSpeed;
                 }
 
-                // 4. AI 상태 머신
+                // AI 상태 변경
                 if (canSee) {
                     e.mode = 'CHASE';
                     e.targetX = p.x; e.targetY = p.y;
@@ -680,22 +676,20 @@
                     e.alertEl.innerText = '!';
                     e.alertEl.style.color = '#ff2a6d';
                 } else if (e.mode === 'CHASE') {
-                    // 추격 중 시야 놓침 -> 마지막 위치로 이동(SEARCH)
                     e.mode = 'SEARCH';
-                    e.wait = 120; // 2초간 두리번
+                    e.wait = 120;
                     e.alertEl.innerText = '?';
                     e.alertEl.style.color = '#ffcc00';
                 }
 
-                // 5. 이동 로직
                 let tx = e.targetX, ty = e.targetY;
                 let speed = e.data.speed;
 
+                // 순찰/수색 로직
                 if (e.mode === 'PATROL') {
-                    speed *= 0.5; // 순찰은 천천히
+                    speed *= 0.5;
                     const d = Math.sqrt((tx - e.x)**2 + (ty - e.y)**2);
                     if (d < 20) {
-                        // 랜덤 웨이포인트
                         e.targetX = Math.random() * (CONFIG.worldW - 100) + 50;
                         e.targetY = Math.random() * (CONFIG.worldH - 100) + 50;
                     }
@@ -703,9 +697,7 @@
                     const d = Math.sqrt((tx - e.x)**2 + (ty - e.y)**2);
                     if (d < 10) {
                         if (e.wait > 0) {
-                            e.wait--;
-                            e.angle += 0.05; // 두리번
-                            return;
+                            e.wait--; e.angle += 0.05; return;
                         } else {
                             e.mode = 'PATROL';
                             e.alertEl.style.display = 'none';
@@ -713,10 +705,7 @@
                     }
                 }
 
-                // remember previous position to detect tiny/no movement
-                const prevX = e.x, prevY = e.y;
-
-                // 실제 이동
+                // --- 이동 및 충돌 해결 (핵심 개선 부분) ---
                 const dx = tx - e.x;
                 const dy = ty - e.y;
                 const dLen = Math.sqrt(dx*dx + dy*dy);
@@ -732,131 +721,65 @@
                     while(diff > Math.PI) diff -= Math.PI*2;
                     e.angle += diff * 0.1;
 
-                    // 개선된 이동 및 충돌 처리
-                    // - 먼저 X/Y 각각 검사하여 가능한 축만 이동
-                    // - 둘 다 막히면 주변 각도로 더 넓게 시도
-                    // - 계속 막히면 teleport fallback
-                    let movedX = false, movedY = false;
-                    const canMoveX = !checkCollide(e.x + mx, e.y);
-                    const canMoveY = !checkCollide(e.x, e.y + my);
+                    // 1. 기본 이동 시도 (X, Y 독립 체크 - 미끄러짐 구현)
+                    let movedX = false;
+                    let movedY = false;
+                    
+                    if (!checkCollide(e.x + mx, e.y)) { e.x += mx; movedX = true; }
+                    if (!checkCollide(e.x, e.y + my)) { e.y += my; movedY = true; }
 
-                    if (canMoveX) { e.x += mx; movedX = true; }
-                    if (canMoveY) { e.y += my; movedY = true; }
-
+                    // 2. 완전히 막혔을 때 (코너/벽) - 회피 기동(Steering)
                     if (!movedX && !movedY) {
-                        // Stronger bounce steering: try multiple angles (45-120 degrees)
-                        let steered = false;
-                        const bounceAngles = [45, 60, 90, 120, 135]; // try these offsets in order
-                        
-                        for (let degOffset of bounceAngles) {
-                            if (steered) break;
-                            const rad = degOffset * Math.PI / 180;
-                            for (let sign of [1, -1]) {
-                                const ang = targetAngle + rad * sign;
-                                const sx = Math.cos(ang) * speed;
-                                const sy = Math.sin(ang) * speed;
-                                if (!checkCollide(e.x + sx, e.y + sy)) {
-                                    e.x += sx; e.y += sy; steered = true; break;
-                                }
-                                // also try partial movement on each axis
-                                if (!checkCollide(e.x + sx, e.y)) { e.x += sx; steered = true; break; }
-                                if (!checkCollide(e.x, e.y + sy)) { e.y += sy; steered = true; break; }
+                        // 좌우 45도, 90도 각도로 탈출구 탐색
+                        const escapeAngles = [45, -45, 90, -90];
+                        let escaped = false;
+                        for (let ang of escapeAngles) {
+                            const rad = (e.angle + ang * Math.PI / 180);
+                            const sx = Math.cos(rad) * speed;
+                            const sy = Math.sin(rad) * speed;
+                            if (!checkCollide(e.x + sx, e.y + sy)) {
+                                e.x += sx; e.y += sy;
+                                escaped = true;
+                                break;
                             }
                         }
-
-                        // if bounce steering didn't work, try full 360 sweep
-                        if (!steered) {
-                            const trySteps = 24; // finer sweep
-                            for (let s = 0; s <= trySteps && !steered; s++) {
-                                const off = (s / trySteps) * Math.PI * 2; // 0..2PI (full circle)
-                                const sx2 = Math.cos(off) * speed * 0.9;
-                                const sy2 = Math.sin(off) * speed * 0.9;
-                                if (!checkCollide(e.x + sx2, e.y + sy2)) { e.x += sx2; e.y += sy2; steered = true; break; }
-                                if (!checkCollide(e.x + sx2, e.y)) { e.x += sx2; steered = true; break; }
-                                if (!checkCollide(e.x, e.y + sy2)) { e.y += sy2; steered = true; break; }
-                            }
-                        }
-
-                        if (!steered) {
-                            // no escape this frame; increment stuck counter
-                            e.stuckCounter = (e.stuckCounter || 0) + 1;
-                            if (e.stuckCounter > 15) { // reduced threshold for faster escape
-                                // try random teleport away from player
-                                let teleported = false;
-                                for (let t = 0; t < 40; t++) {
-                                    const rx = Math.random() * (CONFIG.worldW - 200) + 100;
-                                    const ry = Math.random() * (CONFIG.worldH - 200) + 100;
-                                    const dd = Math.sqrt((rx - state.player.x)**2 + (ry - state.player.y)**2);
-                                    if (dd > 200 && !checkCollide(rx, ry)) { e.x = rx; e.y = ry; teleported = true; break; }
-                                }
-                                if (!teleported) {
-                                    e.targetX = Math.random() * (CONFIG.worldW - 100) + 50;
-                                    e.targetY = Math.random() * (CONFIG.worldH - 100) + 50;
-                                }
-                                e.mode = 'PATROL';
-                                e.stuckCounter = 0;
-                            }
-                        } else {
-                            e.stuckCounter = 0;
-                        }
-                    } else {
-                        // normal movement
-                        e.stuckCounter = 0;
-                    }
-
-                    // If movement was extremely small, treat it as stuck and increment counter
-                    const movedDist = Math.sqrt((e.x - prevX)*(e.x - prevX) + (e.y - prevY)*(e.y - prevY));
-                    if (movedDist < 0.6) {
-                        e.stuckCounter = (e.stuckCounter || 0) + 1;
-                        
-                        // If stuck for a while, respawn nearby instead of waiting for teleport
-                        if (e.stuckCounter > 40) { // ~0.67 seconds at 60fps
-                            let respawned = false;
-                            // Try to find a safe spot within 200-400px radius
-                            for (let attempt = 0; attempt < 50; attempt++) {
-                                const angle = Math.random() * Math.PI * 2;
-                                const distance = 200 + Math.random() * 200; // 200-400px away
-                                const nx = e.x + Math.cos(angle) * distance;
-                                const ny = e.y + Math.sin(angle) * distance;
-                                
-                                // Check bounds and collision
-                                if (nx > CONFIG.radius && nx < CONFIG.worldW - CONFIG.radius &&
-                                    ny > CONFIG.radius && ny < CONFIG.worldH - CONFIG.radius &&
-                                    !checkCollide(nx, ny)) {
-                                    e.x = nx;
-                                    e.y = ny;
-                                    e.stuckCounter = 0;
-                                    e.mode = 'PATROL';
-                                    e.targetX = Math.random() * (CONFIG.worldW - 100) + 50;
-                                    e.targetY = Math.random() * (CONFIG.worldH - 100) + 50;
-                                    respawned = true;
-                                    break;
-                                }
-                            }
-                            
-                            // Fallback: if nearby respawn failed, try anywhere
-                            if (!respawned) {
-                                for (let attempt = 0; attempt < 50; attempt++) {
-                                    const nx = Math.random() * (CONFIG.worldW - 200) + 100;
-                                    const ny = Math.random() * (CONFIG.worldH - 200) + 100;
-                                    if (!checkCollide(nx, ny)) {
-                                        e.x = nx;
-                                        e.y = ny;
-                                        e.stuckCounter = 0;
-                                        e.mode = 'PATROL';
-                                        e.targetX = Math.random() * (CONFIG.worldW - 100) + 50;
-                                        e.targetY = Math.random() * (CONFIG.worldH - 100) + 50;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        e.stuckCounter = 0;
                     }
                 }
 
-                // 잡힘 판정
+                // 3. 강제 탈출 (Unstuck) - 실제로 움직이지 못하고 있으면 감지
+                const moveDist = Math.sqrt((e.x - e.lastX)**2 + (e.y - e.lastY)**2);
+                if (moveDist < 0.5) {
+                    e.stuckCounter++;
+                    // 약 0.5초 이상 끼어있으면
+                    if (e.stuckCounter > 30) {
+                        // 1단계: 목표 지점 변경 (순찰 모드로 전환)
+                        e.mode = 'PATROL';
+                        e.targetX = Math.random() * (CONFIG.worldW - 100) + 50;
+                        e.targetY = Math.random() * (CONFIG.worldH - 100) + 50;
+                        
+                        // 2단계: 심각하게 끼인 경우 약간 텔레포트 (벽 밖으로 튕겨내기)
+                        if (e.stuckCounter > 60) {
+                            // 랜덤 방향으로 살짝 이동 시도
+                            for(let i=0; i<8; i++) {
+                                const ang = Math.random() * Math.PI * 2;
+                                const nx = e.x + Math.cos(ang) * 20;
+                                const ny = e.y + Math.sin(ang) * 20;
+                                if(!checkCollide(nx, ny)) {
+                                    e.x = nx; e.y = ny;
+                                    break;
+                                }
+                            }
+                            e.stuckCounter = 0;
+                        }
+                    }
+                } else {
+                    e.stuckCounter = 0;
+                }
+                
+                // 위치 저장
+                e.lastX = e.x;
+                e.lastY = e.y;
+
                 if (dist < CONFIG.radius * 2) {
                     gameOver(e);
                 }
@@ -864,35 +787,28 @@
         }
 
         function draw() {
-            // 카메라
             const cx = window.innerWidth/2 - state.player.x;
             const cy = window.innerHeight/2 - state.player.y;
             els.world.style.transform = `translate3d(${cx}px, ${cy}px, 0)`;
 
-            // 플레이어
             els.player.style.transform = `translate(${state.player.x}px, ${state.player.y}px) rotate(${state.player.angle}rad)`;
 
-            // 사감들
             state.enemies.forEach(e => {
                 e.el.style.transform = `translate(${e.x}px, ${e.y}px) rotate(${e.angle}rad)`;
-                // Fog of War: 사감 숨기기
                 const visible = hasLineOfSight(state.player, e);
                 e.el.style.opacity = visible ? 1 : 0;
-                e.isVisible = visible; // 시야 렌더링용 플래그 저장
+                e.visible = visible;
             });
 
-            // UI
             els.score.innerText = state.score.toLocaleString();
             els.combo.innerText = `COMBO x${state.combo}`;
             els.combo.style.opacity = state.combo > 1 ? 1 : 0;
 
-            // 시야 그리기
             const ctx = els.ctx;
             ctx.clearRect(0, 0, CONFIG.worldW, CONFIG.worldH);
 
             state.enemies.forEach(e => {
-                // 버그 수정: 사감이 플레이어 눈에 안 보이면 빨간 시야도 안 그림
-                if (!e.isVisible) return; 
+                if(!e.visible) return;
 
                 const rays = 30;
                 const viewAngle = e.data.angle * Math.PI / 180;
@@ -941,19 +857,14 @@
             cancelAnimationFrame(state.animId);
             els.overlay.classList.remove('hidden');
             document.getElementById('title-text').innerText = "검거됨";
-            
-            // 엔딩 메시지
             els.endMsg.innerText = `"${killer.data.msg}"`;
             els.endMsg.style.color = killer.type === 'king' ? '#a55eea' : '#ff4757';
-            
             els.btn.innerText = "다시 도전";
         }
 
-        // --- 실행 ---
         els.btn.addEventListener('click', () => {
             if(state.animId) cancelAnimationFrame(state.animId);
             
-            // 적 제거
             state.enemies.forEach(e => e.el.remove());
             state.enemies = [];
 
@@ -962,11 +873,9 @@
             state.score = 0;
             state.combo = 1;
             state.gameTime = 0;
-            // 안전한 위치로 스폰 (책상에 끼이지 않도록)
             const spawn = findSafeSpawn();
             state.player = { x: spawn.x, y: spawn.y, angle: 0, stunned: 0 };
             
-            // 1학년 사감 생성
             spawnEnemy('1yr');
 
             els.overlay.classList.add('hidden');
