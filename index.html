@@ -176,6 +176,56 @@
         }
         button:hover { background: var(--player-color); color: #000; }
         .hidden { display: none !important; }
+
+        /* Mobile controls */
+        #mobile-controls {
+            position: fixed;
+            left: 20px;
+            bottom: 20px;
+            z-index: 400;
+            display: flex;
+            gap: 18px;
+            align-items: center;
+            pointer-events: none; /* enable only children */
+        }
+        #mobile-joystick {
+            width: 110px;
+            height: 110px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 50%;
+            backdrop-filter: blur(4px);
+            pointer-events: auto;
+            position: relative;
+            touch-action: none;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+        }
+        #mobile-thumb {
+            position: absolute;
+            left: 50%; top: 50%;
+            width: 40px; height: 40px;
+            transform: translate(-50%, -50%);
+            background: rgba(0,230,255,0.9);
+            border-radius: 50%;
+            pointer-events: none;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.5), 0 0 12px rgba(0,230,255,0.25);
+        }
+        .mobile-sleep-btn {
+            width: 92px; height: 92px;
+            border-radius: 50%; border: none;
+            background: linear-gradient(135deg, rgba(0,230,255,0.06), rgba(165,94,234,0.06));
+            color: var(--player-color);
+            font-weight: bold;
+            pointer-events: auto;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.6), 0 0 18px rgba(165,94,234,0.08);
+            backdrop-filter: blur(4px);
+            font-size: 16px;
+        }
+
+        /* Hide mobile controls on large screens; will be shown via JS when needed */
+        @media (min-width: 801px) {
+            #mobile-controls { display: none !important; }
+        }
     </style>
 </head>
 <body>
@@ -207,6 +257,14 @@
             왕사감을 만나면 기절할 수 있으니 주의하세요!
         </p>
         <button id="start-btn">GAME START</button>
+    </div>
+
+    <!-- 모바일 컨트롤: 조이스틱 + 잠자기 버튼 -->
+    <div id="mobile-controls" class="hidden">
+        <div id="mobile-joystick">
+            <div id="mobile-thumb"></div>
+        </div>
+        <button id="mobile-sleep" class="mobile-sleep-btn">잠자기</button>
     </div>
 
     <script>
@@ -256,10 +314,97 @@
             overlay: document.getElementById('overlay'),
             endMsg: document.getElementById('end-msg'),
             btn: document.getElementById('start-btn')
+            ,
+            // mobile controls (created in DOM below)
+            mobileControls: null,
+            mobileJoystick: null,
+            mobileThumb: null,
+            mobileSleepBtn: null
         };
         
         els.canvas.width = CONFIG.worldW;
         els.canvas.height = CONFIG.worldH;
+
+        // --- mobile / touch detection ---
+        function isMobileMode() {
+            return ('ontouchstart' in window) || (navigator.maxTouchPoints && navigator.maxTouchPoints > 0) || window.innerWidth <= 800;
+        }
+
+        // initialize mobile controls references and touch state
+        state.touch = { active: false, dx: 0, dy: 0, baseX: 0, baseY: 0, radius: 44 };
+
+        function initMobileControls() {
+            els.mobileControls = document.getElementById('mobile-controls');
+            els.mobileJoystick = document.getElementById('mobile-joystick');
+            els.mobileThumb = document.getElementById('mobile-thumb');
+            els.mobileSleepBtn = document.getElementById('mobile-sleep');
+
+            if (!els.mobileControls) return;
+
+            // show only on mobile mode
+            if (isMobileMode()) els.mobileControls.classList.remove('hidden');
+            else els.mobileControls.classList.add('hidden');
+
+            // joystick pointer handlers
+            function onStart(ev) {
+                ev.preventDefault();
+                const rect = els.mobileJoystick.getBoundingClientRect();
+                // base center
+                state.touch.baseX = rect.left + rect.width/2;
+                state.touch.baseY = rect.top + rect.height/2;
+                state.touch.active = true;
+                // handle initial move
+                onMove(ev);
+            }
+
+            function onMove(ev) {
+                if (!state.touch.active) return;
+                const p = ev.touches ? ev.touches[0] : ev; // support touch and pointer
+                const vx = p.clientX - state.touch.baseX;
+                const vy = p.clientY - state.touch.baseY;
+                const max = Math.min(els.mobileJoystick.clientWidth, els.mobileJoystick.clientHeight)/2 - 10;
+                let nx = vx, ny = vy;
+                const len = Math.sqrt(nx*nx + ny*ny) || 1;
+                if (len > max) { nx = nx / len * max; ny = ny / len * max; }
+                // normalized -1..1
+                state.touch.dx = nx / max;
+                state.touch.dy = ny / max;
+                // move thumb
+                els.mobileThumb.style.transform = `translate(${nx}px, ${ny}px)`;
+            }
+
+            function onEnd(ev) {
+                ev.preventDefault && ev.preventDefault();
+                state.touch.active = false;
+                state.touch.dx = 0; state.touch.dy = 0;
+                els.mobileThumb.style.transform = `translate(-50%, -50%)`;
+            }
+
+            // pointer events (works for touch and mouse)
+            els.mobileJoystick.addEventListener('pointerdown', onStart);
+            window.addEventListener('pointermove', onMove);
+            window.addEventListener('pointerup', onEnd);
+
+            // also support touch events just in case
+            els.mobileJoystick.addEventListener('touchstart', onStart, {passive:false});
+            els.mobileJoystick.addEventListener('touchmove', onMove, {passive:false});
+            els.mobileJoystick.addEventListener('touchend', onEnd);
+
+            // sleep button handlers (act as space key)
+            els.mobileSleepBtn.addEventListener('pointerdown', e=>{ e.preventDefault(); state.keys['Space']=true; });
+            els.mobileSleepBtn.addEventListener('pointerup', e=>{ e.preventDefault(); state.keys['Space']=false; });
+            els.mobileSleepBtn.addEventListener('touchstart', e=>{ e.preventDefault(); state.keys['Space']=true; }, {passive:false});
+            els.mobileSleepBtn.addEventListener('touchend', e=>{ e.preventDefault(); state.keys['Space']=false; });
+
+            // resize handler to toggle mobile UI
+            window.addEventListener('resize', () => {
+                if (isMobileMode()) els.mobileControls.classList.remove('hidden');
+                else els.mobileControls.classList.add('hidden');
+            });
+        }
+
+        // init mobile controls after DOM
+        initMobileControls();
 
         // --- 맵 생성 ---
         function generateMap() {
@@ -447,11 +592,17 @@
                     state.combo = 1;
                     els.zzz.style.display = 'none';
                     
+                    // Movement: keyboard or mobile touch joystick
                     let dx = 0, dy = 0;
-                    if(state.keys['ArrowUp'] || state.keys['KeyW']) dy -= 1;
-                    if(state.keys['ArrowDown'] || state.keys['KeyS']) dy += 1;
-                    if(state.keys['ArrowLeft'] || state.keys['KeyA']) dx -= 1;
-                    if(state.keys['ArrowRight'] || state.keys['KeyD']) dx += 1;
+                    if (state.touch && state.touch.active) {
+                        dx = state.touch.dx;
+                        dy = state.touch.dy;
+                    } else {
+                        if(state.keys['ArrowUp'] || state.keys['KeyW']) dy -= 1;
+                        if(state.keys['ArrowDown'] || state.keys['KeyS']) dy += 1;
+                        if(state.keys['ArrowLeft'] || state.keys['KeyA']) dx -= 1;
+                        if(state.keys['ArrowRight'] || state.keys['KeyD']) dx += 1;
+                    }
 
                     if(dx !== 0 || dy !== 0) {
                         const len = Math.sqrt(dx*dx + dy*dy);
