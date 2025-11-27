@@ -284,8 +284,10 @@
             radius: 15,
             enemyBaseSpeed: 3.2,
             maxViewDist: 4000,
-            noiseRadius: 350
+            noiseRadius: 350,
+            fps: 60 // 목표 프레임
         };
+        const FRAME_TIME = 1000 / CONFIG.fps; // 프레임당 시간 (약 16.6ms)
 
         // 사감 데이터 정의
         const WARDEN_TYPES = {
@@ -313,8 +315,11 @@
             player: { x: 0, y: 0, angle: 0, stunned: 0 },
             enemies: [],
             obstacles: [],
-            projectiles: [], // 학년부장 검기
-            animId: null
+            projectiles: [],
+            animId: null,
+            // 시간 보정용 변수
+            lastTime: 0,
+            accumulator: 0
         };
 
         const els = {
@@ -423,9 +428,9 @@
                 stuckCounter: 0,
                 lastX: ex, lastY: ey,
                 stunCooldown: 0,
-                abilityTimer: 0, // 교장/교감용 타이머
-                hasFired: false, // 학년부장용 발사 플래그
-                wallHack: false // 교감용 투시 플래그
+                abilityTimer: 0, 
+                hasFired: false,
+                wallHack: false
             });
         }
 
@@ -461,9 +466,8 @@
             return null;
         }
 
-        // 시야 체크 (장애물 고려)
         function hasLineOfSight(start, end, ignoreObstacles = false) {
-            if (ignoreObstacles) return true; // 투시 능력 시 장애물 무시
+            if (ignoreObstacles) return true;
 
             for(let o of state.obstacles) {
                 const walls = [
@@ -554,23 +558,21 @@
         initJoystick();
         initSleepBtn();
 
-        // --- 업데이트 로직 ---
+        // --- 업데이트 로직 (1/60초 단위) ---
         function update() {
             state.gameTime++;
             if (state.gameTime % 60 === 0) {
                 const sec = Math.floor(state.gameTime / 60);
                 els.time.innerText = `생존 시간: ${sec}s`;
                 
-                // 스폰 로직
                 if (sec === 20) spawnEnemy('2yr');
                 if (sec === 40) spawnEnemy('3yr');
                 if (sec === 60) spawnEnemy('king');
-                if (sec === 70) spawnEnemy('grade'); // 학년부장
-                if (sec === 80) spawnEnemy('safety'); // 안전부장
-                if (sec === 90) spawnEnemy('vp'); // 교감
-                if (sec === 100) spawnEnemy('principal'); // 교장
+                if (sec === 70) spawnEnemy('grade'); 
+                if (sec === 80) spawnEnemy('safety'); 
+                if (sec === 90) spawnEnemy('vp'); 
+                if (sec === 100) spawnEnemy('principal'); 
 
-                // 무한 랜덤 스폰 (100초 이후 30초마다)
                 if (sec > 100 && (sec - 100) % 30 === 0) {
                     const types = ['1yr', '2yr', '3yr', 'king', 'principal', 'grade', 'safety', 'vp'];
                     const randomType = types[Math.floor(Math.random() * types.length)];
@@ -603,7 +605,6 @@
                     els.zzz.style.display = 'block';
                     //els.noise.style.display = 'block';
 
-                    // 소음 로직
                     state.enemies.forEach(e => {
                         const dist = Math.sqrt((e.x - state.player.x)**2 + (e.y - state.player.y)**2);
                         if (dist < CONFIG.noiseRadius) {
@@ -646,24 +647,15 @@
                 }
             }
 
-            // 검기(Projectile) 업데이트
+            // 검기 업데이트
             for (let i = state.projectiles.length - 1; i >= 0; i--) {
                 const p = state.projectiles[i];
                 p.x += p.vx;
                 p.y += p.vy;
                 p.el.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${Math.atan2(p.vy, p.vx)}rad)`;
-
-                // 플레이어 충돌
                 const d = Math.sqrt((p.x - state.player.x)**2 + (p.y - state.player.y)**2);
-                if (d < 20) {
-                    gameOver({ data: { msg: "넥슬라이스!" }, type: 'grade' });
-                }
-
-                // 벽 충돌 또는 맵 밖
-                if (checkCollide(p.x, p.y)) {
-                    p.el.remove();
-                    state.projectiles.splice(i, 1);
-                }
+                if (d < 20) gameOver({ data: { msg: "넥슬라이스!" }, type: 'grade' });
+                if (checkCollide(p.x, p.y)) { p.el.remove(); state.projectiles.splice(i, 1); }
             }
 
             // 사감들 업데이트
@@ -671,27 +663,22 @@
                 const p = state.player;
                 const dist = Math.sqrt((e.x - p.x)**2 + (e.y - p.y)**2);
 
-                // 교감 특수 능력: 10초 투시 / 10초 일반
                 if (e.type === 'vp') {
                     e.abilityTimer++;
-                    if (e.abilityTimer > 1200) e.abilityTimer = 0; // 20초 주기
-                    e.wallHack = (e.abilityTimer > 600); // 후반 10초는 투시
+                    if (e.abilityTimer > 1200) e.abilityTimer = 0; 
+                    e.wallHack = (e.abilityTimer > 600); 
                 }
 
-                // 시야 체크
                 let canSee = false;
                 let angleToP = Math.atan2(p.y - e.y, p.x - e.x) - e.angle;
                 while(angleToP <= -Math.PI) angleToP += Math.PI*2;
                 while(angleToP > Math.PI) angleToP -= Math.PI*2;
                 
                 if(Math.abs(angleToP) < (e.data.angle * Math.PI / 180) / 2) {
-                    // 교감은 wallHack이 true면 장애물 무시
                     if(hasLineOfSight(e, p, e.wallHack)) canSee = true;
                 }
 
-                // 특수 능력 체크
                 if (e.stunCooldown > 0) e.stunCooldown--;
-                
                 if (e.type === 'king' && dist < 150 && !p.stunned && e.stunCooldown <= 0) {
                     p.stunned = 120; e.stunCooldown = 180;
                 }
@@ -709,50 +696,35 @@
                         e.alertEl.innerText = '👁️'; e.alertEl.style.display = 'block'; e.alertEl.style.color = 'white';
                     }
                 }
-                // 학년부장: 검기 발사
                 if (e.type === 'grade') {
                     if (canSee && !e.hasFired) {
-                        // 발사 로직
                         e.hasFired = true;
                         const angle = Math.atan2(p.y - e.y, p.x - e.x);
                         const speed = 9;
                         const projEl = document.createElement('div');
                         projEl.className = 'projectile';
                         els.world.appendChild(projEl);
-                        state.projectiles.push({
-                            x: e.x, y: e.y,
-                            vx: Math.cos(angle) * speed,
-                            vy: Math.sin(angle) * speed,
-                            el: projEl
-                        });
+                        state.projectiles.push({ x: e.x, y: e.y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed, el: projEl });
                     }
-                    if (!canSee) e.hasFired = false; // 시야에서 사라지면 재장전
+                    if (!canSee) e.hasFired = false;
                 }
 
-                // AI 상태
                 if (canSee) {
-                    e.mode = 'CHASE';
-                    e.targetX = p.x; e.targetY = p.y;
-                    e.wait = 0;
+                    e.mode = 'CHASE'; e.targetX = p.x; e.targetY = p.y; e.wait = 0;
                     e.alertEl.style.display = 'block'; e.alertEl.innerText = '!'; e.alertEl.style.color = '#ff2a6d';
                 } else if (e.mode === 'CHASE') {
-                    e.mode = 'SEARCH';
-                    e.wait = 120;
-                    if (e.alertEl.innerText === '!') {
-                        e.alertEl.innerText = '?'; e.alertEl.style.color = '#ffcc00';
-                    }
+                    e.mode = 'SEARCH'; e.wait = 120;
+                    if (e.alertEl.innerText === '!') { e.alertEl.innerText = '?'; e.alertEl.style.color = '#ffcc00'; }
                 }
 
                 let tx = e.targetX, ty = e.targetY;
                 let speed = e.data.speed;
 
-                // 순찰 로직
                 if (e.mode === 'PATROL') {
                     speed *= 0.5;
                     const d = Math.sqrt((tx - e.x)**2 + (ty - e.y)**2);
                     if (d < 20) {
-                        e.targetX = Math.random() * CONFIG.worldW;
-                        e.targetY = Math.random() * CONFIG.worldH;
+                        e.targetX = Math.random() * CONFIG.worldW; e.targetY = Math.random() * CONFIG.worldH;
                         e.targetX = Math.max(20, Math.min(CONFIG.worldW - 20, e.targetX));
                         e.targetY = Math.max(20, Math.min(CONFIG.worldH - 20, e.targetY));
                     }
@@ -764,59 +736,45 @@
                     }
                 }
 
-                // 이동
-                const dx = tx - e.x;
-                const dy = ty - e.y;
+                const dx = tx - e.x, dy = ty - e.y;
                 const dLen = Math.sqrt(dx*dx + dy*dy);
-
                 if (dLen > 1) {
-                    const mx = (dx / dLen) * speed;
-                    const my = (dy / dLen) * speed;
-
+                    const mx = (dx / dLen) * speed, my = (dy / dLen) * speed;
                     let targetAngle = Math.atan2(my, mx);
                     let diff = targetAngle - e.angle;
                     while(diff <= -Math.PI) diff += Math.PI*2;
                     while(diff > Math.PI) diff -= Math.PI*2;
                     e.angle += diff * 0.1;
 
-                    let movedX = false;
-                    let movedY = false;
+                    let movedX = false, movedY = false;
                     if (!checkCollide(e.x + mx, e.y)) { e.x += mx; movedX = true; }
                     if (!checkCollide(e.x, e.y + my)) { e.y += my; movedY = true; }
-
                     if (!movedX && !movedY) {
                         const escapeAngles = [45, -45, 90, -90];
                         for (let ang of escapeAngles) {
                             const rad = (e.angle + ang * Math.PI / 180);
-                            const sx = Math.cos(rad) * speed;
-                            const sy = Math.sin(rad) * speed;
-                            if (!checkCollide(e.x + sx, e.y + sy)) {
-                                e.x += sx; e.y += sy; break;
-                            }
+                            const sx = Math.cos(rad) * speed, sy = Math.sin(rad) * speed;
+                            if (!checkCollide(e.x + sx, e.y + sy)) { e.x += sx; e.y += sy; break; }
                         }
                     }
                 }
 
-                // 끼임 탈출
                 const moveDist = Math.sqrt((e.x - e.lastX)**2 + (e.y - e.lastY)**2);
                 if (moveDist < 0.5) {
                     e.stuckCounter++;
                     if (e.stuckCounter > 30) {
                         e.mode = 'PATROL';
-                        e.targetX = Math.random() * CONFIG.worldW;
-                        e.targetY = Math.random() * CONFIG.worldH;
+                        e.targetX = Math.random() * CONFIG.worldW; e.targetY = Math.random() * CONFIG.worldH;
                         if (e.stuckCounter > 60) {
                             for(let i=0; i<8; i++) {
                                 const ang = Math.random() * Math.PI * 2;
-                                const nx = e.x + Math.cos(ang) * 20;
-                                const ny = e.y + Math.sin(ang) * 20;
+                                const nx = e.x + Math.cos(ang) * 20; const ny = e.y + Math.sin(ang) * 20;
                                 if(!checkCollide(nx, ny)) { e.x = nx; e.y = ny; break; }
                             }
                             e.stuckCounter = 0;
                         }
                     }
                 } else { e.stuckCounter = 0; }
-                
                 e.lastX = e.x; e.lastY = e.y;
 
                 if (dist < CONFIG.radius * 2) gameOver(e);
@@ -853,7 +811,6 @@
 
             state.enemies.forEach(e => {
                 if(!e.visible) return;
-
                 const rays = 30;
                 const viewAngle = e.data.angle * Math.PI / 180;
                 const startAngle = e.angle - viewAngle/2;
@@ -861,10 +818,7 @@
 
                 if (e.type === 'king') ctx.fillStyle = "rgba(165, 94, 234, 0.3)";
                 else if (e.type === 'principal') ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
-                else if (e.type === 'vp') {
-                    // 교감 투시 발동 시 색상 변경
-                    ctx.fillStyle = e.wallHack ? "rgba(126, 255, 245, 0.5)" : "rgba(126, 255, 245, 0.2)";
-                }
+                else if (e.type === 'vp') ctx.fillStyle = e.wallHack ? "rgba(126, 255, 245, 0.5)" : "rgba(126, 255, 245, 0.2)";
                 else ctx.fillStyle = "rgba(255, 71, 87, 0.3)";
 
                 ctx.beginPath();
@@ -873,11 +827,8 @@
                 for(let i=0; i<=rays; i++) {
                     const ang = startAngle + step * i;
                     const rayEnd = { x: e.x + Math.cos(ang)*CONFIG.maxViewDist, y: e.y + Math.sin(ang)*CONFIG.maxViewDist };
-                    
                     let closest = rayEnd;
                     let minT = 1.0;
-
-                    // 교감 투시 중이면 장애물 충돌 검사 스킵
                     const ignoreWalls = (e.type === 'vp' && e.wallHack);
 
                     if (!ignoreWalls) {
@@ -894,12 +845,10 @@
                             }
                         }
                     }
-
                     for(let w of mapBorders) {
                         const isect = getIntersection(e, rayEnd, w.s, w.e);
                         if(isect && isect.param < minT) { minT = isect.param; closest = isect; }
                     }
-
                     ctx.lineTo(closest.x, closest.y);
                 }
                 ctx.closePath();
@@ -907,9 +856,20 @@
             });
         }
 
-        function loop() {
+        function loop(timestamp) {
             if(!state.running) return;
-            update();
+            if (!state.lastTime) state.lastTime = timestamp;
+            const deltaTime = timestamp - state.lastTime;
+            state.lastTime = timestamp;
+            state.accumulator += deltaTime;
+            
+            if (state.accumulator > 1000) state.accumulator = FRAME_TIME; 
+
+            while (state.accumulator >= FRAME_TIME) {
+                update();
+                state.accumulator -= FRAME_TIME;
+            }
+            
             draw();
             state.animId = requestAnimationFrame(loop);
         }
@@ -939,11 +899,14 @@
             state.score = 0;
             state.combo = 1;
             state.gameTime = 0;
+            state.accumulator = 0;
+            state.lastTime = 0;
+
             const spawn = findSafeSpawn();
             state.player = { x: spawn.x, y: spawn.y, angle: 0, stunned: 0 };
             spawnEnemy('1yr');
             els.overlay.classList.add('hidden');
-            loop();
+            state.animId = requestAnimationFrame(loop);
         });
 
         window.addEventListener('keydown', e => state.keys[e.code] = true);
