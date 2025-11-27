@@ -91,8 +91,22 @@
         .enemy-2yr { background: #ffa502; border: 2px solid #ffc048; box-shadow: 0 0 10px #ffa502; }
         .enemy-3yr { background: #2ed573; border: 2px solid #7bed9f; box-shadow: 0 0 10px #2ed573; }
         .enemy-king { background: #a55eea; border: 2px solid #d1d8e0; box-shadow: 0 0 20px #a55eea; width: 40px; height: 40px; }
-        /* 교장 스타일 */
+        
+        /* 신규 사감 스타일 */
+        .enemy-grade { background: #eb3b5a; border: 2px solid #fff; box-shadow: 0 0 15px #eb3b5a; } /* 학년부장 */
+        .enemy-safety { background: #4b6584; border: 2px solid #778ca3; box-shadow: 0 0 10px #4b6584; } /* 안전부장 */
+        .enemy-vp { background: #7efff5; border: 2px solid #fff; box-shadow: 0 0 20px #7efff5; opacity: 0.9; } /* 교감 */
         .enemy-principal { background: #000000; border: 2px solid #ffffff; box-shadow: 0 0 25px rgba(255,255,255,0.5); width: 44px; height: 44px; color: white !important; }
+
+        .projectile {
+            position: absolute;
+            width: 20px; height: 6px;
+            background: #ff0000;
+            border-radius: 4px;
+            box-shadow: 0 0 10px #ff0000;
+            z-index: 18;
+            transform: translate(-50%, -50%);
+        }
 
         .alert-icon {
             position: absolute;
@@ -127,7 +141,6 @@
             100% { transform: translate(15px, -30px) scale(1.2); opacity: 0; }
         }
 
-        /* 소음 파동 효과 */
         .noise-ring {
             position: absolute;
             border: 2px solid rgba(0, 229, 255, 0.5);
@@ -140,7 +153,7 @@
         }
         @keyframes ripple {
             0% { width: 0; height: 0; opacity: 1; }
-            100% { width: 700px; height: 700px; opacity: 0; } /* 반경 350px * 2 */
+            100% { width: 700px; height: 700px; opacity: 0; }
         }
 
         .stunned { filter: grayscale(100%) brightness(0.5); }
@@ -247,7 +260,7 @@
     </div>
 
     <div id="overlay">
-        <h1 id="title-text">Stealth Sleep</h1>
+        <h1 id="title-text">사감 몰래 잠자기</h1>
         <div id="end-msg"></div>
         <p style="color:#aaa; margin-bottom:30px;">
             PC: WASD 이동 / SPACE 잠자기<br>
@@ -271,14 +284,21 @@
             radius: 15,
             enemyBaseSpeed: 3.2,
             maxViewDist: 4000,
-            noiseRadius: 350 // 잠잘 때 소리가 들리는 범위
+            noiseRadius: 350
         };
 
+        // 사감 데이터 정의
         const WARDEN_TYPES = {
             '1yr': { name: "1학년 사감", speed: 3.2, color: 'enemy-1yr', angle: 70, msg: "내가 잠깨워주는 사람이야?!!!!!" },
             '2yr': { name: "2학년 사감", speed: 4.0, color: 'enemy-2yr', angle: 80, msg: "이새끼야!!!!!" },
             '3yr': { name: "3학년 사감", speed: 2.6, color: 'enemy-3yr', angle: 90, msg: "일루와!!!!!", ability: 'pull' },
-            'king':{ name: "왕사감", speed: 3.0, color: 'enemy-king', angle: 120, msg: "이 왕사감님이... 당신을 잡았습니다...!", ability: 'stun' },
+            'king':{ name: "왕사감", speed: 3.0, color: 'enemy-king', angle: 120, msg: "이 왕사감이... 당신을 잡았습니다...!", ability: 'stun' },
+            
+            // 신규 사감
+            'grade': { name: "학년부장", speed: 3.1, color: 'enemy-grade', angle: 85, msg: "넥슬라이스!", ability: 'projectile' },
+            'safety': { name: "안전부장", speed: 2.5, color: 'enemy-safety', angle: 50, msg: "면학시간에 잠을자다니... 나 너무 서운해!" },
+            'vp': { name: "교감", speed: 3.2, color: 'enemy-vp', angle: 90, msg: "오늘부터... 면불은 없습니다....!", ability: 'wallhack' },
+            
             'principal': { name: "교장", speed: 3.3, color: 'enemy-principal', angle: 100, msg: "공부하세요...!!", ability: 'omni' }
         };
 
@@ -293,6 +313,7 @@
             player: { x: 0, y: 0, angle: 0, stunned: 0 },
             enemies: [],
             obstacles: [],
+            projectiles: [], // 학년부장 검기
             animId: null
         };
 
@@ -376,6 +397,9 @@
             el.className = `character ${type.color}`;
             if(typeKey === 'king') el.innerText = "王"; 
             if(typeKey === 'principal') el.innerText = "長"; 
+            if(typeKey === 'vp') el.innerText = "監";
+            if(typeKey === 'grade') el.innerText = "部";
+            if(typeKey === 'safety') el.innerText = "安";
             
             const dir = document.createElement('div');
             dir.className = 'dir-pointer';
@@ -399,7 +423,9 @@
                 stuckCounter: 0,
                 lastX: ex, lastY: ey,
                 stunCooldown: 0,
-                abilityTimer: 0 // 교장용 타이머
+                abilityTimer: 0, // 교장/교감용 타이머
+                hasFired: false, // 학년부장용 발사 플래그
+                wallHack: false // 교감용 투시 플래그
             });
         }
 
@@ -435,7 +461,10 @@
             return null;
         }
 
-        function hasLineOfSight(start, end) {
+        // 시야 체크 (장애물 고려)
+        function hasLineOfSight(start, end, ignoreObstacles = false) {
+            if (ignoreObstacles) return true; // 투시 능력 시 장애물 무시
+
             for(let o of state.obstacles) {
                 const walls = [
                     {s:{x:o.x, y:o.y}, e:{x:o.x+o.w, y:o.y}},
@@ -462,7 +491,6 @@
                 state.joystick.active = true;
                 updateJoy(touch);
             };
-
             const handleMove = (e) => {
                 e.preventDefault();
                 if (!state.joystick.active) return;
@@ -470,14 +498,12 @@
                 if (e.changedTouches) {
                     for(let i=0; i<e.changedTouches.length; i++) {
                         if(e.changedTouches[i].identifier === state.joystick.id) {
-                            touch = e.changedTouches[i];
-                            break;
+                            touch = e.changedTouches[i]; break;
                         }
                     }
                 }
                 updateJoy(touch);
             };
-
             const handleEnd = (e) => {
                 e.preventDefault();
                 let isMyTouch = false;
@@ -486,14 +512,12 @@
                         if(e.changedTouches[i].identifier === state.joystick.id) isMyTouch = true;
                     }
                 } else { isMyTouch = true; }
-
                 if (isMyTouch) {
                     state.joystick.active = false;
                     state.joystick.x = 0; state.joystick.y = 0;
                     thumb.style.transform = `translate(-50%, -50%)`;
                 }
             };
-
             const updateJoy = (touch) => {
                 const rect = joy.getBoundingClientRect();
                 const centerX = rect.left + rect.width / 2;
@@ -509,7 +533,6 @@
                 state.joystick.x = dx / maxRadius;
                 state.joystick.y = dy / maxRadius;
             };
-
             joy.addEventListener('touchstart', handleStart, {passive: false});
             joy.addEventListener('touchmove', handleMove, {passive: false});
             joy.addEventListener('touchend', handleEnd, {passive: false});
@@ -538,17 +561,18 @@
                 const sec = Math.floor(state.gameTime / 60);
                 els.time.innerText = `생존 시간: ${sec}s`;
                 
-                // 기존 스폰 로직
+                // 스폰 로직
                 if (sec === 20) spawnEnemy('2yr');
                 if (sec === 40) spawnEnemy('3yr');
                 if (sec === 60) spawnEnemy('king');
-                
-                // 교장 스폰 (90초)
-                if (sec === 90) spawnEnemy('principal');
+                if (sec === 70) spawnEnemy('grade'); // 학년부장
+                if (sec === 80) spawnEnemy('safety'); // 안전부장
+                if (sec === 90) spawnEnemy('vp'); // 교감
+                if (sec === 100) spawnEnemy('principal'); // 교장
 
-                // 무한 랜덤 스폰 (90초 이후 30초마다)
-                if (sec > 90 && (sec - 90) % 30 === 0) {
-                    const types = ['1yr', '2yr', '3yr', 'king', 'principal'];
+                // 무한 랜덤 스폰 (100초 이후 30초마다)
+                if (sec > 100 && (sec - 100) % 30 === 0) {
+                    const types = ['1yr', '2yr', '3yr', 'king', 'principal', 'grade', 'safety', 'vp'];
                     const randomType = types[Math.floor(Math.random() * types.length)];
                     spawnEnemy(randomType);
                     
@@ -573,22 +597,20 @@
                 els.stunMsg.style.display = 'none';
 
                 if(state.keys['Space']) {
-                    // 잠자는 중
                     state.sleepTimer++;
                     if(state.sleepTimer % 60 === 0 && state.combo < 10) state.combo++;
                     state.score += Math.floor(state.combo * 5);
                     els.zzz.style.display = 'block';
-                    //els.noise.style.display = 'block'; // 소음 효과
+                    //els.noise.style.display = 'block';
 
-                    // --- 소음 로직 (Noise Mechanic) ---
-                    // 일정 반경 내의 사감은 벽 너머에서도 소리를 듣고 쫓아옴
+                    // 소음 로직
                     state.enemies.forEach(e => {
                         const dist = Math.sqrt((e.x - state.player.x)**2 + (e.y - state.player.y)**2);
                         if (dist < CONFIG.noiseRadius) {
                             e.mode = 'CHASE';
                             e.targetX = state.player.x; 
                             e.targetY = state.player.y;
-                            e.alertEl.innerText = '♪'; // 소리 아이콘
+                            e.alertEl.innerText = '♪';
                             e.alertEl.style.display = 'block';
                             e.alertEl.style.color = '#00e5ff';
                         }
@@ -624,46 +646,87 @@
                 }
             }
 
+            // 검기(Projectile) 업데이트
+            for (let i = state.projectiles.length - 1; i >= 0; i--) {
+                const p = state.projectiles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.el.style.transform = `translate(${p.x}px, ${p.y}px) rotate(${Math.atan2(p.vy, p.vx)}rad)`;
+
+                // 플레이어 충돌
+                const d = Math.sqrt((p.x - state.player.x)**2 + (p.y - state.player.y)**2);
+                if (d < 20) {
+                    gameOver({ data: { msg: "넥슬라이스!" }, type: 'grade' });
+                }
+
+                // 벽 충돌 또는 맵 밖
+                if (checkCollide(p.x, p.y)) {
+                    p.el.remove();
+                    state.projectiles.splice(i, 1);
+                }
+            }
+
             // 사감들 업데이트
             state.enemies.forEach(e => {
                 const p = state.player;
                 const dist = Math.sqrt((e.x - p.x)**2 + (e.y - p.y)**2);
 
-                // 1. 시야 체크 (무한 거리)
+                // 교감 특수 능력: 10초 투시 / 10초 일반
+                if (e.type === 'vp') {
+                    e.abilityTimer++;
+                    if (e.abilityTimer > 1200) e.abilityTimer = 0; // 20초 주기
+                    e.wallHack = (e.abilityTimer > 600); // 후반 10초는 투시
+                }
+
+                // 시야 체크
                 let canSee = false;
                 let angleToP = Math.atan2(p.y - e.y, p.x - e.x) - e.angle;
                 while(angleToP <= -Math.PI) angleToP += Math.PI*2;
                 while(angleToP > Math.PI) angleToP -= Math.PI*2;
                 
                 if(Math.abs(angleToP) < (e.data.angle * Math.PI / 180) / 2) {
-                    if(hasLineOfSight(e, p)) canSee = true;
+                    // 교감은 wallHack이 true면 장애물 무시
+                    if(hasLineOfSight(e, p, e.wallHack)) canSee = true;
                 }
 
                 // 특수 능력 체크
                 if (e.stunCooldown > 0) e.stunCooldown--;
                 
-                // 왕사감: 기절
                 if (e.type === 'king' && dist < 150 && !p.stunned && e.stunCooldown <= 0) {
                     p.stunned = 120; e.stunCooldown = 180;
                 }
-                // 3학년: 끌어당기기
                 if (e.type === '3yr' && canSee) {
                     const pullAngle = Math.atan2(e.y - p.y, e.x - p.x);
                     const pullSpeed = 1.5;
                     if (!checkCollide(p.x + Math.cos(pullAngle)*pullSpeed, p.y)) p.x += Math.cos(pullAngle)*pullSpeed;
                     if (!checkCollide(p.x, p.y + Math.sin(pullAngle)*pullSpeed)) p.y += Math.sin(pullAngle)*pullSpeed;
                 }
-                // 교장: 20초마다 위치 파악 (Global Scan)
                 if (e.type === 'principal') {
                     e.abilityTimer++;
-                    if (e.abilityTimer > 1200) { // 20초 (60fps 기준)
-                        e.mode = 'CHASE';
-                        e.targetX = p.x; e.targetY = p.y;
+                    if (e.abilityTimer > 1200) {
+                        e.mode = 'CHASE'; e.targetX = p.x; e.targetY = p.y;
                         e.abilityTimer = 0;
-                        e.alertEl.innerText = '👁️'; // 감지 아이콘
-                        e.alertEl.style.display = 'block';
-                        e.alertEl.style.color = 'white';
+                        e.alertEl.innerText = '👁️'; e.alertEl.style.display = 'block'; e.alertEl.style.color = 'white';
                     }
+                }
+                // 학년부장: 검기 발사
+                if (e.type === 'grade') {
+                    if (canSee && !e.hasFired) {
+                        // 발사 로직
+                        e.hasFired = true;
+                        const angle = Math.atan2(p.y - e.y, p.x - e.x);
+                        const speed = 9;
+                        const projEl = document.createElement('div');
+                        projEl.className = 'projectile';
+                        els.world.appendChild(projEl);
+                        state.projectiles.push({
+                            x: e.x, y: e.y,
+                            vx: Math.cos(angle) * speed,
+                            vy: Math.sin(angle) * speed,
+                            el: projEl
+                        });
+                    }
+                    if (!canSee) e.hasFired = false; // 시야에서 사라지면 재장전
                 }
 
                 // AI 상태
@@ -675,7 +738,7 @@
                 } else if (e.mode === 'CHASE') {
                     e.mode = 'SEARCH';
                     e.wait = 120;
-                    if (e.alertEl.innerText === '!') { // 소리나 교장 능력이 아닐 때만 ?로 변경
+                    if (e.alertEl.innerText === '!') {
                         e.alertEl.innerText = '?'; e.alertEl.style.color = '#ffcc00';
                     }
                 }
@@ -798,6 +861,10 @@
 
                 if (e.type === 'king') ctx.fillStyle = "rgba(165, 94, 234, 0.3)";
                 else if (e.type === 'principal') ctx.fillStyle = "rgba(255, 255, 255, 0.4)";
+                else if (e.type === 'vp') {
+                    // 교감 투시 발동 시 색상 변경
+                    ctx.fillStyle = e.wallHack ? "rgba(126, 255, 245, 0.5)" : "rgba(126, 255, 245, 0.2)";
+                }
                 else ctx.fillStyle = "rgba(255, 71, 87, 0.3)";
 
                 ctx.beginPath();
@@ -810,16 +877,21 @@
                     let closest = rayEnd;
                     let minT = 1.0;
 
-                    for(let o of state.obstacles) {
-                        const walls = [
-                            {s:{x:o.x, y:o.y}, e:{x:o.x+o.w, y:o.y}},
-                            {s:{x:o.x+o.w, y:o.y}, e:{x:o.x+o.w, y:o.y+o.h}},
-                            {s:{x:o.x+o.w, y:o.y+o.h}, e:{x:o.x, y:o.y+o.h}},
-                            {s:{x:o.x, y:o.y+o.h}, e:{x:o.x, y:o.y}}
-                        ];
-                        for(let w of walls) {
-                            const isect = getIntersection(e, rayEnd, w.s, w.e);
-                            if(isect && isect.param < minT) { minT = isect.param; closest = isect; }
+                    // 교감 투시 중이면 장애물 충돌 검사 스킵
+                    const ignoreWalls = (e.type === 'vp' && e.wallHack);
+
+                    if (!ignoreWalls) {
+                        for(let o of state.obstacles) {
+                            const walls = [
+                                {s:{x:o.x, y:o.y}, e:{x:o.x+o.w, y:o.y}},
+                                {s:{x:o.x+o.w, y:o.y}, e:{x:o.x+o.w, y:o.y+o.h}},
+                                {s:{x:o.x+o.w, y:o.y+o.h}, e:{x:o.x, y:o.y+o.h}},
+                                {s:{x:o.x, y:o.y+o.h}, e:{x:o.x, y:o.y}}
+                            ];
+                            for(let w of walls) {
+                                const isect = getIntersection(e, rayEnd, w.s, w.e);
+                                if(isect && isect.param < minT) { minT = isect.param; closest = isect; }
+                            }
                         }
                     }
 
@@ -848,7 +920,10 @@
             els.overlay.classList.remove('hidden');
             document.getElementById('title-text').innerText = "검거됨";
             els.endMsg.innerText = `"${killer.data.msg}"`;
-            els.endMsg.style.color = killer.type === 'king' ? '#a55eea' : (killer.type === 'principal' ? '#ffffff' : '#ff4757');
+            els.endMsg.style.color = '#ff4757';
+            if (killer.type === 'king') els.endMsg.style.color = '#a55eea';
+            if (killer.type === 'principal') els.endMsg.style.color = '#ffffff';
+            if (killer.type === 'vp') els.endMsg.style.color = '#7efff5';
             els.btn.innerText = "다시 도전";
         }
 
@@ -856,6 +931,9 @@
             if(state.animId) cancelAnimationFrame(state.animId);
             state.enemies.forEach(e => e.el.remove());
             state.enemies = [];
+            state.projectiles.forEach(p => p.el.remove());
+            state.projectiles = [];
+            
             generateMap();
             state.running = true;
             state.score = 0;
